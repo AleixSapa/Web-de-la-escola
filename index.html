@@ -8,11 +8,13 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Custom CSS -->
     <link rel="stylesheet" href="styles.css" />
-    <!-- Import Map per a mòduls ES (Només Supabase) -->
+    <!-- Import Map per a mòduls ES -->
     <script type="importmap">
       {
         "imports": {
-          "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2"
+          "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
+          "@google/genai": "https://esm.sh/@google/genai@^1.10.0",
+          "chess.js": "https://esm.sh/chess.js@1.0.0-beta.8"
         }
       }
     </script>
@@ -132,7 +134,7 @@
           </div>
         </header>
 
-        <div id="dashboard-content" class="bg-white p-6 rounded-2xl shadow-lg">
+        <div id="dashboard-content">
           <!-- El contingut específic del rol s'injectarà aquí -->
         </div>
       </div>
@@ -241,6 +243,50 @@
                 </div>
               </div>
             </main>
+          </div>
+        </div>
+      </div>
+      <!-- Chess View -->
+      <div
+        id="chess-view"
+        class="hidden animate-fade-in w-full max-w-6xl mx-auto"
+      >
+        <header class="flex items-center justify-between mb-4">
+          <button
+            id="chess-back-btn"
+            class="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+          >
+            <span class="font-semibold">Tornar</span>
+          </button>
+          <h1 class="text-xl font-bold text-gray-800">Escacs contra la IA</h1>
+          <button
+            id="new-game-btn"
+            class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+          >
+            Partida Nova
+          </button>
+        </header>
+
+        <div
+          class="flex flex-col md:flex-row gap-6 items-center md:items-start justify-center"
+        >
+          <div
+            id="chessboard"
+            class="grid grid-cols-8 w-full max-w-md aspect-square rounded-lg overflow-hidden shadow-2xl border-4 border-gray-700 bg-emerald-100"
+          >
+            <!-- Tauler generat per JS -->
+          </div>
+          <div
+            class="bg-white p-6 rounded-lg shadow-lg w-full md:w-64 text-center"
+          >
+            <h2 class="text-lg font-bold mb-4">Estat</h2>
+            <p id="chess-status">Torn de: Blanques</p>
+            <p
+              id="ai-thinking"
+              class="hidden text-blue-600 animate-pulse font-semibold mt-2"
+            >
+              La IA està pensant...
+            </p>
           </div>
         </div>
       </div>
