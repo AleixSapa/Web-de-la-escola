@@ -18,51 +18,6 @@
   animation: fadeIn 0.5s ease-out forwards;
 }
 
-/* Escacs */
-.chess-square {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 2.5rem;
-  cursor: default;
-  position: relative;
-  user-select: none;
-}
-
-@media (min-width: 768px) {
-  .chess-square {
-    font-size: 3.5rem;
-  }
-}
-
-.chess-square.dark {
-  background-color: #047857; /* emerald-700 */
-  color: white;
-}
-
-.chess-square.light {
-  background-color: #d1fae5; /* emerald-100 */
-  color: black;
-}
-
-.chess-square.selected span {
-  transform: scale(1.15);
-  color: #fde047; /* yellow-300 */
-}
-
-.chess-square.possible-move::after {
-  content: "";
-  position: absolute;
-  width: 30%;
-  height: 30%;
-  background-color: rgba(34, 197, 94, 0.6);
-  border-radius: 50%;
-}
-
-.chess-square.clickable {
-  cursor: pointer;
-}
-
 /* Scrollbars */
 ::-webkit-scrollbar {
   width: 8px;
