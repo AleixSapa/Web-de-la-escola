@@ -1,4 +1,4 @@
-/* Animacions */
+/* Animacions globals */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -14,33 +14,28 @@
   animation: fadeIn 0.5s ease-out forwards;
 }
 
-/* Scrollbar personalitzat */
-::-webkit-scrollbar {
-  width: 8px;
-}
-::-webkit-scrollbar-track {
-  background: #f1f1f1;
-}
-::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
-}
-
-/* Estils de les peces d'escacs */
-.chess-piece {
-  font-size: 3rem; /* Ajustar segons necessitat */
-  line-height: 1;
-}
-
-@media (min-width: 768px) {
-  .chess-piece {
-    font-size: 4rem;
-  }
-}
-
+/* Utilitats per a l'estat de càrrega o cursors */
 .cursor-wait {
   cursor: wait;
+}
+
+/* Estils específics pel tauler d'escacs si calen ajustos */
+.chess-square {
+  user-select: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+/* Modal overlays */
+.modal-overlay {
+  background-color: rgba(0, 0, 0, 0.5);
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
 }
