@@ -3,224 +3,194 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Web de l'Escola</title>
+    <title>Portal Escolar</title>
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+
     <!-- Custom CSS -->
     <link rel="stylesheet" href="styles.css" />
-    <!-- Import Map per a mòduls ES -->
+
+    <!-- Import Map per a llibreries externes (Supabase, Chess.js, Gemini) -->
     <script type="importmap">
       {
         "imports": {
           "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
-          "@google/genai": "https://esm.sh/@google/genai@^1.10.0",
-          "chess.js": "https://esm.sh/chess.js@1.0.0-beta.8"
+          "chess.js": "https://esm.sh/chess.js@1.0.0-beta.8",
+          "@google/genai": "https://esm.sh/@google/genai@^1.10.0"
         }
       }
     </script>
   </head>
   <body
-    class="bg-gradient-to-br from-blue-100 via-blue-50 to-indigo-100 min-h-screen flex flex-col items-center justify-center font-sans text-gray-900 transition-all duration-500"
+    class="bg-gradient-to-br from-blue-100 via-blue-50 to-indigo-100 min-h-screen text-gray-800 font-sans"
   >
-    <!-- Container Principal -->
-    <div id="app-container" class="w-full max-w-6xl p-4">
-      <!-- Loading Screen -->
-      <div
-        id="loading-view"
-        class="flex flex-col items-center justify-center h-screen fixed inset-0 bg-white/80 z-50"
-      >
+    <!-- Loader -->
+    <div
+      id="loader"
+      class="fixed inset-0 flex items-center justify-center bg-white z-50"
+    >
+      <div class="flex flex-col items-center">
         <div
           class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"
         ></div>
-        <p class="text-gray-600 font-medium">Carregant dades...</p>
+        <p class="text-gray-600 font-medium">Carregant...</p>
       </div>
+    </div>
 
-      <!-- Login View -->
-      <div id="login-view" class="hidden w-full max-w-md mx-auto">
+    <!-- Main Container -->
+    <main class="container mx-auto p-4 max-w-6xl">
+      <!-- VISTA: LOGIN -->
+      <div
+        id="view-login"
+        class="view-section hidden h-screen flex items-center justify-center"
+      >
         <div
-          class="bg-white p-8 md:p-10 rounded-2xl shadow-2xl transform transition-all duration-500 hover:scale-105"
+          class="bg-white p-8 md:p-10 rounded-2xl shadow-2xl w-full max-w-md transform transition-all duration-500 hover:scale-105"
         >
           <div class="text-center mb-8">
-            <div
-              class="inline-block bg-blue-100 p-3 rounded-full mb-4"
-              id="login-icon-container"
-            >
-              <!-- Icona Role s'injectarà aquí -->
+            <div class="inline-block bg-blue-100 p-3 rounded-full mb-4">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-8 w-8 text-blue-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 14l9-5-9-5-9 5 9 5z"
+                />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"
+                />
+              </svg>
             </div>
             <h1 class="text-3xl font-bold text-gray-900">Portal Escolar</h1>
             <p class="text-gray-500 mt-2">Inicia sessió per accedir</p>
           </div>
-
           <form id="login-form" class="space-y-6">
-            <div class="relative">
-              <div
-                class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3"
-                id="user-icon-container"
-              ></div>
+            <div>
               <input
-                id="username"
                 type="text"
+                id="username"
                 placeholder="Nom d'usuari"
-                class="w-full rounded-md border-0 py-2.5 pl-10 pr-3 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-600 sm:text-sm"
+                class="w-full rounded-md border py-2.5 px-3 text-gray-900 ring-1 ring-gray-300 focus:ring-2 focus:ring-blue-600"
                 required
               />
             </div>
-
-            <div class="relative">
-              <div
-                class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3"
-                id="lock-icon-container"
-              ></div>
+            <div>
               <input
-                id="password"
                 type="password"
+                id="password"
                 placeholder="Contrasenya"
-                class="w-full rounded-md border-0 py-2.5 pl-10 pr-3 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-600 sm:text-sm"
+                class="w-full rounded-md border py-2.5 px-3 text-gray-900 ring-1 ring-gray-300 focus:ring-2 focus:ring-blue-600"
                 required
               />
             </div>
-
             <div
               id="login-message"
               class="hidden p-4 rounded-md text-sm text-center"
             ></div>
-
             <button
               type="submit"
-              id="login-btn"
-              class="flex w-full justify-center rounded-md bg-blue-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600 transition-all duration-200"
+              class="flex w-full justify-center rounded-md bg-blue-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 shadow-sm transition-all"
             >
               Inicia Sessió
             </button>
           </form>
-          <p class="mt-8 text-center text-xs text-gray-400">
-            © 2025 La Meva Escola.
-          </p>
         </div>
       </div>
 
-      <!-- Dashboard View -->
-      <div
-        id="dashboard-view"
-        class="hidden animate-fade-in w-full max-w-4xl mx-auto"
-      >
+      <!-- VISTA: DASHBOARD -->
+      <div id="view-dashboard" class="view-section hidden animate-fade-in">
         <header
-          class="flex flex-col sm:flex-row items-center justify-between mb-8 gap-4"
+          class="flex flex-col sm:flex-row items-center justify-between mb-8 gap-4 bg-white p-4 rounded-xl shadow-sm"
         >
           <div>
             <h1 class="text-3xl font-bold text-gray-900">Portal Escolar</h1>
             <p class="text-gray-600">
-              Sessió iniciada com a
+              Benvingut,
               <span
-                id="user-role-display"
+                id="user-display-name"
                 class="font-semibold text-blue-700"
               ></span>
-              (<span id="user-name-display"></span>)
+              (<span id="user-role-display"></span>)
             </p>
           </div>
           <div class="flex items-center gap-2">
             <button
-              id="nav-chat-btn"
-              class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 transition-colors shadow-sm"
+              onclick="app.navigateTo('chat')"
+              class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 shadow-sm"
             >
               <span>Xat</span>
             </button>
             <button
-              id="logout-btn"
-              class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors shadow-sm"
+              onclick="app.logout()"
+              class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 shadow-sm"
             >
               <span>Sortir</span>
             </button>
           </div>
         </header>
 
-        <div id="dashboard-content">
-          <!-- El contingut específic del rol s'injectarà aquí -->
+        <div
+          id="dashboard-content"
+          class="grid grid-cols-1 md:grid-cols-2 gap-6"
+        >
+          <!-- El contingut es genera dinàmicament via JS -->
         </div>
       </div>
 
-      <!-- Chat View -->
+      <!-- VISTA: CHAT -->
       <div
-        id="chat-view"
-        class="hidden animate-fade-in w-full h-[calc(100vh-2rem)] flex flex-col"
+        id="view-chat"
+        class="view-section hidden h-[calc(100vh-2rem)] flex flex-col"
       >
         <div
-          class="bg-white rounded-2xl shadow-lg flex-grow flex flex-col overflow-hidden h-full"
+          class="bg-white rounded-2xl shadow-lg flex-grow flex flex-col overflow-hidden"
         >
           <header
-            class="flex items-center justify-between p-4 border-b flex-shrink-0"
+            class="flex items-center justify-between p-4 border-b bg-gray-50"
           >
             <button
-              id="chat-back-btn"
-              class="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+              onclick="app.navigateTo('dashboard')"
+              class="text-gray-600 hover:text-gray-900 font-semibold flex items-center gap-2"
             >
-              <span class="font-semibold">Tornar</span>
+              ← Tornar
             </button>
             <h1 class="text-xl font-bold text-gray-800">Xat Escolar</h1>
-            <button
-              id="new-chat-btn"
-              class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
-            >
-              Nou Xat
-            </button>
+            <div class="w-16"></div>
+            <!-- Spacer -->
           </header>
-
-          <div class="flex flex-grow overflow-hidden h-full">
-            <!-- Sidebar Converses -->
+          <div class="flex flex-grow overflow-hidden">
             <aside
-              id="conversations-list"
-              class="w-1/3 border-r overflow-y-auto bg-gray-50/50"
+              class="w-1/3 border-r overflow-y-auto bg-gray-50"
+              id="chat-list"
             >
               <!-- Llista de converses -->
             </aside>
-
-            <!-- Main Xat -->
             <main class="w-2/3 flex flex-col bg-gray-50 relative">
               <div
-                id="chat-header"
-                class="p-4 border-b bg-white flex-shrink-0 hidden"
+                id="chat-messages"
+                class="flex-grow p-4 overflow-y-auto space-y-4"
               >
-                <h2
-                  id="chat-title"
-                  class="font-bold text-lg text-gray-800"
-                ></h2>
-              </div>
-
-              <div
-                id="messages-container"
-                class="flex-grow p-4 overflow-y-auto"
-              >
-                <div
-                  class="flex items-center justify-center h-full text-gray-500"
-                >
+                <p class="text-center text-gray-500 mt-10">
                   Selecciona una conversa.
-                </div>
+                </p>
               </div>
-
-              <div
-                id="chat-input-area"
-                class="p-4 border-t bg-white flex-shrink-0 hidden"
-              >
-                <form id="message-form" class="flex items-center gap-2">
-                  <button
-                    type="button"
-                    id="camera-btn"
-                    class="p-2 text-gray-500 hover:text-blue-600"
-                  >
-                    📷
-                  </button>
-                  <button
-                    type="button"
-                    id="mic-btn"
-                    class="p-2 text-gray-500 hover:text-blue-600"
-                  >
-                    🎤
-                  </button>
+              <div class="p-4 border-t bg-white">
+                <form id="chat-form" class="flex items-center gap-2">
                   <input
                     type="text"
                     id="message-input"
                     placeholder="Escriu un missatge..."
-                    class="w-full rounded-md border border-gray-300 p-2 focus:ring-blue-500"
+                    class="w-full rounded-md border border-gray-300 p-2 focus:ring-2 focus:ring-blue-500"
                   />
                   <button
                     type="submit"
@@ -229,113 +199,51 @@
                     Enviar
                   </button>
                 </form>
-                <div
-                  id="recording-status"
-                  class="hidden flex items-center gap-4 text-red-600 font-semibold"
-                >
-                  <span class="animate-pulse">Gravant...</span>
-                  <button
-                    id="stop-rec-btn"
-                    class="px-3 py-1 bg-red-600 text-white text-xs rounded"
-                  >
-                    Aturar
-                  </button>
-                </div>
               </div>
             </main>
           </div>
         </div>
       </div>
-      <!-- Chess View -->
-      <div
-        id="chess-view"
-        class="hidden animate-fade-in w-full max-w-6xl mx-auto"
-      >
+
+      <!-- VISTA: CHESS -->
+      <div id="view-chess" class="view-section hidden">
         <header class="flex items-center justify-between mb-4">
           <button
-            id="chess-back-btn"
-            class="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+            onclick="app.navigateTo('dashboard')"
+            class="text-gray-600 hover:text-gray-900 font-semibold flex items-center gap-2"
           >
-            <span class="font-semibold">Tornar</span>
+            ← Tornar
           </button>
-          <h1 class="text-xl font-bold text-gray-800">Escacs contra la IA</h1>
+          <h1 class="text-xl font-bold">Escacs vs IA</h1>
           <button
-            id="new-game-btn"
-            class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+            onclick="app.resetChessGame()"
+            class="px-4 py-2 bg-blue-600 text-white rounded-md"
           >
             Partida Nova
           </button>
         </header>
-
-        <div
-          class="flex flex-col md:flex-row gap-6 items-center md:items-start justify-center"
-        >
+        <div class="flex flex-col md:flex-row gap-6 justify-center">
           <div
             id="chessboard"
-            class="grid grid-cols-8 w-full max-w-md aspect-square rounded-lg overflow-hidden shadow-2xl border-4 border-gray-700 bg-emerald-100"
+            class="grid grid-cols-8 w-full max-w-md aspect-square border-4 border-gray-700 shadow-2xl rounded-lg overflow-hidden select-none"
           >
             <!-- Tauler generat per JS -->
           </div>
-          <div
-            class="bg-white p-6 rounded-lg shadow-lg w-full md:w-64 text-center"
-          >
+          <div class="bg-white p-6 rounded-lg shadow-lg w-full md:w-64 h-fit">
             <h2 class="text-lg font-bold mb-4">Estat</h2>
             <p id="chess-status">Torn de: Blanques</p>
             <p
               id="ai-thinking"
-              class="hidden text-blue-600 animate-pulse font-semibold mt-2"
+              class="hidden text-blue-600 animate-pulse mt-2 font-bold"
             >
               La IA està pensant...
             </p>
           </div>
         </div>
       </div>
+    </main>
 
-      <!-- Modals -->
-      <div
-        id="modal-overlay"
-        class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4"
-      >
-        <!-- New Chat Modal Content -->
-        <div
-          id="new-chat-modal"
-          class="hidden bg-white rounded-lg shadow-xl w-full max-w-md flex flex-col"
-        >
-          <div class="p-4 border-b flex justify-between items-center">
-            <h2 class="text-lg font-semibold">Nova Conversa</h2>
-            <button class="close-modal text-gray-500 text-2xl">&times;</button>
-          </div>
-          <div class="p-4 space-y-4">
-            <input
-              type="text"
-              id="user-search"
-              placeholder="Cerca usuaris..."
-              class="w-full p-2 border rounded"
-            />
-            <input
-              type="text"
-              id="group-name-input"
-              placeholder="Nom del grup (opcional)"
-              class="w-full p-2 border rounded hidden"
-            />
-            <ul
-              id="user-list"
-              class="max-h-60 overflow-y-auto border rounded"
-            ></ul>
-          </div>
-          <div class="p-4 bg-gray-50 rounded-b-lg flex justify-end">
-            <button
-              id="create-chat-confirm"
-              class="px-4 py-2 bg-blue-600 text-white rounded"
-            >
-              Crear
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Main Logic -->
+    <!-- JavaScript Logic -->
     <script type="module" src="script.js"></script>
   </body>
 </html>
