@@ -889,13 +889,21 @@
         const stats = { Matemàtiques: [], Medi: [], Català: [], General: [] };
 
         state.myGrades.forEach((g) => {
-          const sub = g.exam.subject;
-          // Normalitzar noms si calgués, aquí assumim match exacte o 'Altres'
+          let sub = g.exam.subject;
+          // Normalització simple per evitar errors de accents o majúscules
+          if (sub) {
+            if (sub.includes("Mates") || sub.includes("Matemàtiques"))
+              sub = "Matemàtiques";
+            else if (sub.toLowerCase().includes("medi")) sub = "Medi";
+            else if (
+              sub.toLowerCase().includes("catala") ||
+              sub.includes("Català")
+            )
+              sub = "Català";
+          }
+
           if (subjects.includes(sub)) {
             stats[sub].push(g.score);
-          } else {
-            // Si hi ha altres assignatures, les pots ignorar o posar a 'Altres'
-            // Per la mitjana general compten totes
           }
           stats["General"].push(g.score);
         });
