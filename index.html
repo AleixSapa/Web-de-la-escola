@@ -71,12 +71,12 @@
       </div>
     </div>
 
-    <!-- Modal Container (Hidden by default) -->
+    <!-- Modal Container -->
     <div
       id="modal-container"
       class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
     >
-      <!-- Content injected here -->
+      <!-- Content injected dynamically -->
     </div>
 
     <script type="module">
@@ -88,17 +88,16 @@
       // --- ESTAT GLOBAL ---
       const state = {
         currentUser: null,
-        view: "login", // login, dashboard, chat, teacher_exams, teacher_homework, student_grades, student_homework, admin_dashboard
+        view: "login",
         users: [],
         students: [],
         conversations: [],
         currentChatId: null,
-        // Admin
         selectedGroupForManagement: null,
-        // Dades Estudiant
+        newChatSearch: "",
+        newChatSelectedUsers: [],
         myGrades: [],
         myHomework: [],
-        // Dades Professor
         exams: [],
         selectedExam: null,
         examGrades: [],
@@ -129,14 +128,12 @@
 
       async function initApp() {
         try {
-          // Carregar usuaris
           const { data: usersData } = await supabase.from("users").select("*");
           if (usersData) {
             state.users = usersData;
             state.students = usersData.filter((u) => u.role === "Alumne");
           }
 
-          // Carregar converses
           const { data: convData } = await supabase
             .from("conversations")
             .select("*");
@@ -241,7 +238,7 @@
           });
       }
 
-      // --- VISTA: DASHBOARD PRINCIPAL (Alumne / Professor) ---
+      // --- VISTA: DASHBOARD PRINCIPAL ---
       function renderDashboard(container) {
         const user = state.currentUser;
 
@@ -846,14 +843,16 @@
                 </div>`;
       }
 
-      // --- ALUMNE: NOTES & DEURES (simplificat per brevetat, igual que l'anterior) ---
+      // --- ALUMNE: NOTES ---
       async function fetchStudentGrades() {
-        /* ... igual que anterior ... */ state.isLoadingData = true;
+        state.isLoadingData = true;
         renderApp();
+
         const { data: gradesData } = await supabase
           .from("grades")
           .select("*")
           .eq("student_username", state.currentUser.username);
+
         if (gradesData && gradesData.length > 0) {
           const examIds = gradesData.map((g) => g.exam_id);
           const { data: examsData } = await supabase
@@ -861,11 +860,12 @@
             .select("*")
             .in("id", examIds);
           state.myGrades = gradesData.map((grade) => {
-            const exam = examsData.find((e) => e.id === grade.exam_id);
-            return {
-              ...grade,
-              exam: exam || { title: "Examen", subject: "General", date: "-" },
+            const exam = examsData.find((e) => e.id === grade.exam_id) || {
+              title: "Examen",
+              subject: "General",
+              date: "-",
             };
+            return { ...grade, exam };
           });
         } else {
           state.myGrades = [];
@@ -873,6 +873,7 @@
         state.isLoadingData = false;
         renderApp();
       }
+
       function renderStudentGrades(container) {
         const getColor = (s) =>
           s >= 9
@@ -882,29 +883,104 @@
             : s >= 5
             ? "text-yellow-600"
             : "text-red-600";
+
+        // --- CÀLCUL DE MITJANES ---
+        const subjects = ["Matemàtiques", "Medi", "Català"];
+        const stats = { Matemàtiques: [], Medi: [], Català: [], General: [] };
+
+        state.myGrades.forEach((g) => {
+          const sub = g.exam.subject;
+          // Normalitzar noms si calgués, aquí assumim match exacte o 'Altres'
+          if (subjects.includes(sub)) {
+            stats[sub].push(g.score);
+          } else {
+            // Si hi ha altres assignatures, les pots ignorar o posar a 'Altres'
+            // Per la mitjana general compten totes
+          }
+          stats["General"].push(g.score);
+        });
+
+        const getAvg = (arr) =>
+          arr.length
+            ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1)
+            : "-";
+
+        const statsHtml = `
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-blue-100 p-4 rounded-xl text-center border border-blue-200">
+                        <h4 class="text-sm font-bold text-blue-800 uppercase">General</h4>
+                        <span class="text-3xl font-bold text-blue-900">${getAvg(
+                          stats["General"]
+                        )}</span>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl text-center border border-gray-200 shadow-sm">
+                        <h4 class="text-xs text-gray-500 uppercase">Mates</h4>
+                        <span class="text-xl font-bold ${getColor(
+                          parseFloat(getAvg(stats["Matemàtiques"]))
+                        )}">${getAvg(stats["Matemàtiques"])}</span>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl text-center border border-gray-200 shadow-sm">
+                        <h4 class="text-xs text-gray-500 uppercase">Medi</h4>
+                        <span class="text-xl font-bold ${getColor(
+                          parseFloat(getAvg(stats["Medi"]))
+                        )}">${getAvg(stats["Medi"])}</span>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl text-center border border-gray-200 shadow-sm">
+                        <h4 class="text-xs text-gray-500 uppercase">Català</h4>
+                        <span class="text-xl font-bold ${getColor(
+                          parseFloat(getAvg(stats["Català"]))
+                        )}">${getAvg(stats["Català"])}</span>
+                    </div>
+                </div>
+            `;
+
         let listHtml =
           state.myGrades.length === 0
             ? `<div class="text-center py-10 text-gray-500">No tens notes.</div>`
             : state.myGrades
                 .map(
-                  (g) =>
-                    `<div class="bg-white border rounded-xl p-5 shadow-sm mb-4 flex justify-between items-center"><div><div class="flex items-center gap-2 mb-1"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-bold uppercase">${
-                      g.exam.subject || "General"
-                    }</span><span class="text-sm text-gray-500">${
-                      g.exam.date
-                    }</span></div><h3 class="text-lg font-bold text-gray-800">${
-                      g.exam.title
-                    }</h3>${
-                      g.feedback
-                        ? `<div class="mt-2 text-sm text-gray-600 bg-gray-50 p-2 rounded italic">"${g.feedback}"</div>`
-                        : ""
-                    }</div><div class="text-3xl font-bold ${getColor(
-                      g.score
-                    )}">${g.score}</div></div>`
+                  (g) => `
+                    <div class="bg-white border rounded-xl p-5 shadow-sm mb-4 flex justify-between items-center hover:shadow-md transition">
+                        <div>
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-bold uppercase">${
+                                  g.exam.subject || "General"
+                                }</span>
+                                <span class="text-sm text-gray-500">${
+                                  g.exam.date
+                                }</span>
+                            </div>
+                            <h3 class="text-lg font-bold text-gray-800">${
+                              g.exam.title
+                            }</h3>
+                            ${
+                              g.feedback
+                                ? `<div class="mt-2 text-sm text-gray-600 bg-gray-50 p-2 rounded italic">"${g.feedback}"</div>`
+                                : ""
+                            }
+                        </div>
+                        <div class="text-3xl font-bold ${getColor(g.score)}">${
+                    g.score
+                  }</div>
+                    </div>`
                 )
                 .join("");
-        container.innerHTML = `<div class="w-full max-w-4xl px-4 animate-fade-in py-6"><header class="flex items-center gap-4 mb-6 border-b pb-4 bg-white p-4 rounded-xl shadow-sm"><button onclick="window.goBack()" class="text-gray-600">${Icons.Back}</button><h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2"><span class="text-yellow-600">${Icons.Academic}</span> Les Meves Notes</h2></header><div class="space-y-4">${listHtml}</div></div>`;
+
+        container.innerHTML = `
+                <div class="w-full max-w-4xl px-4 animate-fade-in py-6">
+                    <header class="flex items-center gap-4 mb-6 border-b pb-4 bg-white p-4 rounded-xl shadow-sm">
+                        <button onclick="window.goBack()" class="text-gray-600">${Icons.Back}</button>
+                        <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2"><span class="text-yellow-600">${Icons.Academic}</span> Les Meves Notes</h2>
+                    </header>
+                    ${statsHtml}
+                    <div class="space-y-4">
+                        <h3 class="font-bold text-gray-700 ml-1">Històric d'Exàmens</h3>
+                        ${listHtml}
+                    </div>
+                </div>`;
       }
+
+      // --- ALUMNE: DEURES ---
       async function fetchStudentHomework() {
         state.isLoadingData = true;
         renderApp();
@@ -982,7 +1058,7 @@
         container.innerHTML = `<div class="w-full max-w-4xl px-4 animate-fade-in py-6"><header class="flex items-center gap-4 mb-6 border-b pb-4 bg-white p-4 rounded-xl shadow-sm"><button onclick="window.goBack()" class="text-gray-600">${Icons.Back}</button><h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2"><span class="text-green-600">${Icons.Book}</span> Els Meus Deures</h2></header><div>${listHtml}</div></div>`;
       }
 
-      // --- XAT ---
+      // --- XAT: FUNCIONALITAT RESTAURADA AMB MODAL ---
       function renderChat(container) {
         const user = state.currentUser;
         const myConvs = state.conversations.filter((c) =>
@@ -1031,7 +1107,7 @@
                               Icons.Back
                             }</button>
                             <h2 class="font-bold">Xats</h2>
-                            <button onclick="window.createChatPrompt()" class="text-blue-600 text-sm font-bold">+ Nou</button>
+                            <button onclick="window.openNewChatModal()" class="text-blue-600 text-sm font-bold">+ Nou</button>
                         </div>
                         <div class="overflow-y-auto flex-grow">${chatListHtml}</div>
                     </div>
@@ -1039,7 +1115,7 @@
                         <div id="messages-list" class="flex-grow p-4 overflow-y-auto custom-scrollbar flex flex-col">${messagesHtml}</div>
                         ${
                           activeChat
-                            ? `<div class="p-3 bg-white border-t flex gap-2 items-center"><input type="text" id="msg-input" placeholder="Missatge..." class="flex-grow border rounded-full px-4 py-2"><button id="send-btn" class="p-2 bg-blue-600 text-white rounded-full">${Icons.Send}</button></div>`
+                            ? `<div class="p-3 bg-white border-t flex gap-2 items-center"><input type="text" id="msg-input" placeholder="Missatge..." class="flex-grow border rounded-full px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500"><button id="send-btn" class="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700">${Icons.Send}</button></div>`
                             : ""
                         }
                     </div>
@@ -1067,10 +1143,161 @@
               .upsert(state.conversations[idx]);
           };
           sendBtn.onclick = send;
-          msgInput.onkeypress = (e) => e.key === "Enter" && send();
+
+          msgInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+              send();
+            }
+          });
+
           const list = document.getElementById("messages-list");
           list.scrollTop = list.scrollHeight;
         }
+      }
+
+      // --- NEW CHAT MODAL LOGIC ---
+      window.openNewChatModal = () => {
+        state.newChatSelectedUsers = [];
+        state.newChatSearch = "";
+        renderNewChatModal();
+      };
+
+      window.toggleNewChatUser = (username) => {
+        if (state.newChatSelectedUsers.includes(username)) {
+          state.newChatSelectedUsers = state.newChatSelectedUsers.filter(
+            (u) => u !== username
+          );
+        } else {
+          state.newChatSelectedUsers.push(username);
+        }
+        renderNewChatModal();
+      };
+
+      window.searchUsers = (val) => {
+        state.newChatSearch = val.toLowerCase();
+        renderNewChatModal();
+      };
+
+      window.confirmCreateChat = async () => {
+        if (state.newChatSelectedUsers.length === 0)
+          return alert("Selecciona almenys un usuari.");
+
+        const isGroup = state.newChatSelectedUsers.length > 1;
+        let groupName = null;
+
+        if (isGroup) {
+          groupName = document.getElementById("group-name-input").value;
+          if (!groupName) return alert("Posa un nom al grup.");
+        }
+
+        const participants = [
+          state.currentUser.username,
+          ...state.newChatSelectedUsers,
+        ];
+        const newConv = {
+          id: `conv-${Date.now()}`,
+          participants,
+          messages: [],
+          isGroup,
+          name: groupName,
+          creator: state.currentUser.username,
+        };
+
+        state.conversations.push(newConv);
+        state.currentChatId = newConv.id;
+
+        await supabase.from("conversations").insert([newConv]);
+
+        window.closeModal();
+        renderApp();
+      };
+
+      function renderNewChatModal() {
+        const modal = document.getElementById("modal-container");
+        const filteredUsers = state.users.filter(
+          (u) =>
+            u.username !== state.currentUser.username &&
+            u.name.toLowerCase().includes(state.newChatSearch)
+        );
+        const isGroup = state.newChatSelectedUsers.length > 1;
+
+        modal.innerHTML = `
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in flex flex-col max-h-[80vh]">
+                    <header class="p-4 border-b flex justify-between items-center bg-gray-50">
+                        <h3 class="font-bold text-lg text-gray-800">Nova Conversa</h3>
+                        <button onclick="window.closeModal()" class="text-gray-500 text-xl">&times;</button>
+                    </header>
+                    
+                    <div class="p-4 space-y-3 border-b">
+                        <input oninput="window.searchUsers(this.value)" value="${
+                          state.newChatSearch
+                        }" placeholder="Cerca usuaris..." class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
+                        ${
+                          isGroup
+                            ? `<input id="group-name-input" type="text" placeholder="Nom del grup..." class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none animate-fade-in">`
+                            : ""
+                        }
+                    </div>
+
+                    <div class="overflow-y-auto p-2 space-y-1 flex-grow">
+                        ${
+                          filteredUsers.length === 0
+                            ? '<p class="text-center text-gray-500 py-4">No s\'han trobat usuaris.</p>'
+                            : filteredUsers
+                                .map((u) => {
+                                  const isSelected =
+                                    state.newChatSelectedUsers.includes(
+                                      u.username
+                                    );
+                                  return `
+                                <div onclick="window.toggleNewChatUser('${
+                                  u.username
+                                }')" class="flex items-center justify-between p-3 rounded cursor-pointer ${
+                                    isSelected
+                                      ? "bg-blue-50 border border-blue-200"
+                                      : "hover:bg-gray-100"
+                                  }">
+                                    <div>
+                                        <p class="font-semibold text-gray-800">${
+                                          u.name
+                                        }</p>
+                                        <p class="text-xs text-gray-500">@${
+                                          u.username
+                                        } • ${u.role}</p>
+                                    </div>
+                                    <div class="w-5 h-5 border rounded-full flex items-center justify-center ${
+                                      isSelected
+                                        ? "bg-blue-600 border-blue-600"
+                                        : "border-gray-400"
+                                    }">
+                                        ${
+                                          isSelected
+                                            ? '<svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>'
+                                            : ""
+                                        }
+                                    </div>
+                                </div>
+                              `;
+                                })
+                                .join("")
+                        }
+                    </div>
+
+                    <div class="p-4 border-t bg-gray-50 flex justify-between items-center">
+                        <span class="text-sm text-gray-500">${
+                          state.newChatSelectedUsers.length
+                        } seleccionats</span>
+                        <button onclick="window.confirmCreateChat()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition disabled:opacity-50" ${
+                          state.newChatSelectedUsers.length === 0
+                            ? "disabled"
+                            : ""
+                        }>
+                            ${isGroup ? "Crear Grup" : "Crear Xat"}
+                        </button>
+                    </div>
+                </div>
+            `;
+        modal.classList.remove("hidden");
       }
 
       // --- GLOBALS ---
@@ -1096,48 +1323,6 @@
       };
       window.selectChat = (id) => {
         state.currentChatId = id;
-        renderApp();
-      };
-      window.createChatPrompt = async () => {
-        // Simplified for demo: Just ask for ONE username. In real app, modal with checkboxes.
-        const input = prompt(
-          "Introdueix nom d'usuari (o varis separats per coma per grup):"
-        );
-        if (!input) return;
-        const participants = input
-          .split(",")
-          .map((s) => s.trim())
-          .filter((s) => s !== state.currentUser.username);
-
-        // Check if users exist
-        const validParticipants = participants.filter((p) =>
-          state.users.find((u) => u.username === p)
-        );
-        if (validParticipants.length === 0) return alert("Usuaris no trobats.");
-
-        const isGroup = validParticipants.length > 1;
-        let groupName = null;
-        if (isGroup) {
-          groupName = prompt("Nom del grup:");
-          if (!groupName) return;
-        }
-
-        const allParticipants = [
-          state.currentUser.username,
-          ...validParticipants,
-        ];
-        const newConv = {
-          id: `conv-${Date.now()}`,
-          participants: allParticipants,
-          messages: [],
-          isGroup,
-          name: groupName,
-          creator: state.currentUser.username,
-        };
-
-        state.conversations.push(newConv);
-        state.currentChatId = newConv.id;
-        await supabase.from("conversations").insert([newConv]);
         renderApp();
       };
 
