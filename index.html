@@ -4,13 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Portal Escolar</title>
-
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-
     <!-- Supabase JS -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-
     <style>
       body {
         font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
@@ -28,7 +25,6 @@
           transform: translateY(0);
         }
       }
-
       .custom-scrollbar::-webkit-scrollbar {
         width: 6px;
       }
@@ -39,7 +35,6 @@
         background-color: rgba(0, 0, 0, 0.2);
         border-radius: 20px;
       }
-
       .message-bubble {
         max-width: 75%;
         padding: 8px 12px;
@@ -76,6 +71,14 @@
       </div>
     </div>
 
+    <!-- Modal Container (Hidden by default) -->
+    <div
+      id="modal-container"
+      class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+    >
+      <!-- Content injected here -->
+    </div>
+
     <script type="module">
       // --- CONFIGURACIÓ ---
       const SUPABASE_URL = "https://hocwnqqdyyinjrtczhdw.supabase.co";
@@ -85,33 +88,30 @@
       // --- ESTAT GLOBAL ---
       const state = {
         currentUser: null,
-        view: "login", // login, dashboard, chat, teacher_exams, teacher_homework, student_grades, student_homework
+        view: "login", // login, dashboard, chat, teacher_exams, teacher_homework, student_grades, student_homework, admin_dashboard
         users: [],
-        students: [], // Llista d'alumnes per als professors
+        students: [],
         conversations: [],
         currentChatId: null,
-
+        // Admin
+        selectedGroupForManagement: null,
         // Dades Estudiant
         myGrades: [],
         myHomework: [],
-
         // Dades Professor
         exams: [],
         selectedExam: null,
-        examGrades: [], // Notes de l'examen seleccionat
+        examGrades: [],
         teacherHomeworks: [],
-
-        // Seleccions temporals (formularis)
         newExamStudents: [],
         newHomeworkStudents: [],
-
         isLoadingData: false,
       };
 
       // --- ICONES SVG ---
       const Icons = {
         User: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.108a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.642Z" /></svg>`,
-        Lock: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 0 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25 2.25H4.5a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>`,
+        Lock: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 0 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H4.5a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>`,
         Chat: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193l-3.722.537a59.014 59.014 0 0 1-5.032 0l-3.722-.537C3.347 17.1 2.5 16.136 2.5 15v-4.286c0-.97.616-1.813 1.5-2.097L6.6 6.49M20.25 8.511l-6.442-3.22a44.947 44.947 0 0 0-5.616 0L1.75 6.49m9.191 1.063c.22.046.45.082.68.118l3.45-1.725a2.25 2.25 0 0 1 2.158 1.162l.516 1.032a2.25 2.25 0 0 1-1.162 2.158l-3.45 1.725a1.125 1.125 0 0 1-1.229-.586l-.516-1.032a1.125 1.125 0 0 1 .586-1.229Zm-2.836.216a1.125 1.125 0 0 1-.586 1.229l-3.45 1.725a2.25 2.25 0 0 1-2.158-1.162l-.516-1.032a2.25 2.25 0 0 1 1.162-2.158l3.45-1.725c.22.046.45.082.68.118a1.125 1.125 0 0 1 .586 1.229Z" /></svg>`,
         Logout: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m-3 0-3-3m0 0 3-3m-3 3H5.25" /></svg>`,
         Academic: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 0 0-.491 6.347A48.627 48.627 0 0 1 12 20.904a48.627 48.627 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.57 50.57 0 0 0-2.658-.813A59.905 59.905 0 0 1 12 3.493a59.902 59.902 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0 1 12 13.489a50.702 50.702 0 0 1 7.74-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" /></svg>`,
@@ -121,19 +121,22 @@
         Clock: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`,
         Check: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`,
         Trash: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>`,
-        Plus: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>`,
+        UserPlus: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM4 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" /></svg>`,
+        Group: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-2.438c.157-.145.295-.303.43-1.528A4.375 4.375 0 0 0 16.25 8.25V6.75a4.5 4.5 0 1 0-9 0v1.5c0 .351.041.693.12 1.023l.05.16a.75.75 0 0 1-.97.854l-.066-.027a4.375 4.375 0 0 0-3.483 1.575 4.375 4.375 0 0 0-1.575 3.483c-.012.247-.027.495-.027.747v1.875a9.375 9.375 0 0 0 3.375 7.25Z" /></svg>`,
       };
 
       // --- FUNCIONS PRINCIPALS ---
 
       async function initApp() {
         try {
+          // Carregar usuaris
           const { data: usersData } = await supabase.from("users").select("*");
           if (usersData) {
             state.users = usersData;
             state.students = usersData.filter((u) => u.role === "Alumne");
           }
 
+          // Carregar converses
           const { data: convData } = await supabase
             .from("conversations")
             .select("*");
@@ -173,6 +176,9 @@
             break;
           case "student_homework":
             renderStudentHomework(app);
+            break;
+          case "admin_dashboard":
+            renderAdminDashboard(app);
             break;
           default:
             renderDashboard(app);
@@ -221,7 +227,12 @@
 
             if (user) {
               state.currentUser = user;
-              state.view = "dashboard";
+              // Redirigir segons rol
+              if (user.role === "Administrador") {
+                state.view = "admin_dashboard";
+              } else {
+                state.view = "dashboard";
+              }
               renderApp();
             } else {
               errorMsg.textContent = "Usuari o contrasenya incorrectes.";
@@ -230,7 +241,7 @@
           });
       }
 
-      // --- VISTA: DASHBOARD PRINCIPAL ---
+      // --- VISTA: DASHBOARD PRINCIPAL (Alumne / Professor) ---
       function renderDashboard(container) {
         const user = state.currentUser;
 
@@ -330,6 +341,210 @@
             `;
       }
 
+      // --- VISTA: ADMIN DASHBOARD ---
+      window.createAdminUser = async (e) => {
+        e.preventDefault();
+        const username = document.getElementById("adm-user").value;
+        const name = document.getElementById("adm-name").value;
+        const pass = document.getElementById("adm-pass").value;
+        const role = document.getElementById("adm-role").value;
+        const subject = document.getElementById("adm-subject")?.value || null;
+
+        const newUser = {
+          username,
+          name,
+          password: pass,
+          role,
+          subject,
+          points: role === "Alumne" ? 0 : null,
+          hasUnlockedAudio: false,
+          hasUnlockedCamera: false,
+          hasUnlockedIA: false,
+        };
+
+        const { data, error } = await supabase.from("users").insert([newUser]);
+        if (error) {
+          alert("Error creant usuari. Potser ja existeix.");
+        } else {
+          alert("Usuari creat correctament!");
+          e.target.reset();
+          initApp(); // Refresh user lists
+        }
+      };
+
+      window.openGroupModal = (groupId) => {
+        const group = state.conversations.find((c) => c.id === groupId);
+        if (!group) return;
+        state.selectedGroupForManagement = group;
+        renderAdminGroupModal();
+      };
+
+      window.closeModal = () => {
+        document.getElementById("modal-container").classList.add("hidden");
+        state.selectedGroupForManagement = null;
+      };
+
+      window.kickUserFromGroup = async (username) => {
+        const group = state.selectedGroupForManagement;
+        if (!group) return;
+        if (!confirm(`Expulsar a ${username} del grup?`)) return;
+
+        const newParticipants = group.participants.filter(
+          (p) => p !== username
+        );
+        const sysMsg = {
+          id: `msg-sys-${Date.now()}`,
+          text: `${username} expulsat per l'administrador.`,
+          sender: "system",
+          timestamp: new Date().toISOString(),
+        };
+
+        const { error } = await supabase
+          .from("conversations")
+          .update({
+            participants: newParticipants,
+            messages: [...group.messages, sysMsg],
+          })
+          .eq("id", group.id);
+
+        if (!error) {
+          // Update local state
+          const idx = state.conversations.findIndex((c) => c.id === group.id);
+          state.conversations[idx].participants = newParticipants;
+          state.conversations[idx].messages.push(sysMsg);
+          renderAdminGroupModal(); // Refresh modal
+          alert("Usuari expulsat.");
+        } else {
+          alert("Error expulsant l'usuari.");
+        }
+      };
+
+      function renderAdminGroupModal() {
+        const group = state.selectedGroupForManagement;
+        const modal = document.getElementById("modal-container");
+        if (!group) {
+          modal.classList.add("hidden");
+          return;
+        }
+
+        modal.innerHTML = `
+                <div class="bg-white rounded-lg shadow-xl w-full max-w-lg overflow-hidden animate-fade-in">
+                    <header class="p-4 border-b bg-gray-50 flex justify-between items-center">
+                        <h3 class="font-bold text-lg">Gestionar: ${
+                          group.name
+                        }</h3>
+                        <button onclick="window.closeModal()" class="text-gray-500 hover:text-gray-800 text-xl">&times;</button>
+                    </header>
+                    <div class="p-4 max-h-96 overflow-y-auto">
+                        <p class="text-sm text-gray-500 mb-2">Participants:</p>
+                        <ul class="space-y-2">
+                            ${group.participants
+                              .map(
+                                (p) => `
+                                <li class="flex justify-between items-center bg-gray-100 p-2 rounded">
+                                    <span>${p} ${
+                                  p === group.creator ? "(Creador)" : ""
+                                }</span>
+                                    ${
+                                      p !== group.creator
+                                        ? `<button onclick="window.kickUserFromGroup('${p}')" class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded hover:bg-red-200">Expulsar</button>`
+                                        : ""
+                                    }
+                                </li>
+                            `
+                              )
+                              .join("")}
+                        </ul>
+                    </div>
+                    <div class="p-4 bg-gray-50 border-t text-right">
+                        <button onclick="window.closeModal()" class="bg-gray-300 px-4 py-2 rounded text-gray-800 hover:bg-gray-400">Tancar</button>
+                    </div>
+                </div>
+            `;
+        modal.classList.remove("hidden");
+      }
+
+      function renderAdminDashboard(container) {
+        const groups = state.conversations.filter((c) => c.isGroup);
+
+        container.innerHTML = `
+                <div class="animate-fade-in w-full h-full bg-gray-100 p-6 overflow-y-auto">
+                    <header class="flex justify-between items-center mb-8">
+                        <h1 class="text-3xl font-bold text-gray-800">Panell d'Administrador</h1>
+                        <button onclick="window.logout()" class="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">${
+                          Icons.Logout
+                        } Sortir</button>
+                    </header>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <!-- CREAR USUARI -->
+                        <div class="bg-white p-6 rounded-2xl shadow-lg border-l-4 border-blue-600">
+                            <h2 class="text-xl font-bold mb-4 flex items-center gap-2 text-blue-800">${
+                              Icons.UserPlus
+                            } Crear Nou Usuari</h2>
+                            <form onsubmit="window.createAdminUser(event)" class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Nom d'usuari (Login)</label>
+                                    <input id="adm-user" type="text" class="w-full p-2 border rounded" required>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Nom i Cognoms</label>
+                                    <input id="adm-name" type="text" class="w-full p-2 border rounded" required>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Contrasenya</label>
+                                    <input id="adm-pass" type="text" class="w-full p-2 border rounded" required>
+                                </div>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700">Rol</label>
+                                        <select id="adm-role" class="w-full p-2 border rounded" onchange="document.getElementById('subj-field').classList.toggle('hidden', this.value !== 'Professor')">
+                                            <option value="Alumne">Alumne</option>
+                                            <option value="Professor">Professor</option>
+                                            <option value="Administrador">Administrador</option>
+                                        </select>
+                                    </div>
+                                    <div id="subj-field" class="hidden">
+                                        <label class="block text-sm font-medium text-gray-700">Assignatura</label>
+                                        <input id="adm-subject" type="text" class="w-full p-2 border rounded" placeholder="Ex: Mates">
+                                    </div>
+                                </div>
+                                <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 font-bold">Crear Usuari</button>
+                            </form>
+                        </div>
+
+                        <!-- GESTIÓ DE GRUPS -->
+                        <div class="bg-white p-6 rounded-2xl shadow-lg border-l-4 border-purple-600">
+                            <h2 class="text-xl font-bold mb-4 flex items-center gap-2 text-purple-800">${
+                              Icons.Group
+                            } Gestió de Grups de Xat</h2>
+                            ${
+                              groups.length === 0
+                                ? '<p class="text-gray-500">No hi ha grups actius.</p>'
+                                : `
+                                <ul class="space-y-3">
+                                    ${groups
+                                      .map(
+                                        (g) => `
+                                        <li class="flex justify-between items-center p-3 bg-gray-50 rounded border hover:bg-gray-100">
+                                            <div>
+                                                <span class="font-bold block">${g.name}</span>
+                                                <span class="text-xs text-gray-500">${g.participants.length} membres</span>
+                                            </div>
+                                            <button onclick="window.openGroupModal('${g.id}')" class="text-sm bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700">Gestionar</button>
+                                        </li>
+                                    `
+                                      )
+                                      .join("")}
+                                </ul>
+                            `
+                            }
+                        </div>
+                    </div>
+                </div>
+            `;
+      }
+
       // --- PROFESSOR: GESTIÓ D'EXÀMENS ---
       async function fetchTeacherExams() {
         state.isLoadingData = true;
@@ -340,7 +555,6 @@
           .order("date", { ascending: false });
         state.exams = data || [];
         state.isLoadingData = false;
-        // Reset selection when entering view
         state.newExamStudents = state.students.map((s) => s.username);
         renderApp();
       }
@@ -349,14 +563,11 @@
         const exam = state.exams.find((e) => e.id === examId);
         if (!exam) return;
         state.selectedExam = exam;
-
-        // Fetch grades for this exam
         const { data } = await supabase
           .from("grades")
           .select("*")
           .eq("exam_id", examId);
         state.examGrades = data || [];
-
         renderApp();
       }
 
@@ -397,30 +608,21 @@
       window.saveGrade = async (studentUsername, field, value) => {
         if (!state.selectedExam) return;
         const examId = state.selectedExam.id;
-
-        // Find grade locally
         let grade = state.examGrades.find(
           (g) => g.student_username === studentUsername
         );
         let payload = { exam_id: examId, student_username: studentUsername };
-
-        if (grade) {
-          payload = { ...grade, [field]: value };
-        } else {
+        if (grade) payload = { ...grade, [field]: value };
+        else {
           payload[field] = value;
-          // Defaults
           if (field === "score") payload.feedback = "";
           if (field === "feedback") payload.score = 0;
         }
-
-        // Upsert to DB
         const { data, error } = await supabase
           .from("grades")
           .upsert(payload)
           .select();
-
         if (!error && data) {
-          // Update local
           const idx = state.examGrades.findIndex(
             (g) => g.student_username === studentUsername
           );
@@ -430,19 +632,16 @@
       };
 
       window.toggleExamStudent = (username) => {
-        if (state.newExamStudents.includes(username)) {
+        if (state.newExamStudents.includes(username))
           state.newExamStudents = state.newExamStudents.filter(
             (u) => u !== username
           );
-        } else {
-          state.newExamStudents.push(username);
-        }
+        else state.newExamStudents.push(username);
       };
 
       function renderExamManager(container) {
         if (state.isLoadingData)
           return (container.innerHTML = `<div class="p-10 text-center">Carregant...</div>`);
-
         const studentsToGrade = state.selectedExam
           ? state.students.filter(
               (s) =>
@@ -450,7 +649,6 @@
                 state.selectedExam.assigned_students.includes(s.username)
             )
           : [];
-
         const gradingHtml = state.selectedExam
           ? `
                 <h3 class="text-xl font-bold mb-4 text-blue-800 border-b pb-2">Avaluant: ${
@@ -466,28 +664,15 @@
                         const feedback = grade ? grade.feedback : "";
                         return `
                         <div class="bg-gray-50 p-4 rounded-lg shadow-sm border">
-                            <div class="flex justify-between items-center mb-2">
-                                <span class="font-bold text-gray-800">${s.name}</span>
-                            </div>
+                            <div class="flex justify-between items-center mb-2"><span class="font-bold text-gray-800">${s.name}</span></div>
                             <div class="flex gap-4">
-                                <div class="w-24">
-                                    <label class="text-xs text-gray-500 block mb-1">Nota</label>
-                                    <input type="number" max="10" value="${score}" 
-                                        onchange="window.saveGrade('${s.username}', 'score', this.value)"
-                                        class="w-full p-2 border rounded text-center">
-                                </div>
-                                <div class="flex-grow">
-                                    <label class="text-xs text-gray-500 block mb-1">Feedback</label>
-                                    <input type="text" value="${feedback}" 
-                                        onchange="window.saveGrade('${s.username}', 'feedback', this.value)"
-                                        class="w-full p-2 border rounded" placeholder="Comentari...">
-                                </div>
+                                <div class="w-24"><label class="text-xs text-gray-500 block mb-1">Nota</label><input type="number" max="10" value="${score}" onchange="window.saveGrade('${s.username}', 'score', this.value)" class="w-full p-2 border rounded text-center"></div>
+                                <div class="flex-grow"><label class="text-xs text-gray-500 block mb-1">Feedback</label><input type="text" value="${feedback}" onchange="window.saveGrade('${s.username}', 'feedback', this.value)" class="w-full p-2 border rounded" placeholder="Comentari..."></div>
                             </div>
                         </div>`;
                       })
                       .join("")}
-                </div>
-            `
+                </div>`
           : `<div class="h-full flex items-center justify-center text-gray-400">Selecciona un examen per avaluar</div>`;
 
         container.innerHTML = `
@@ -501,7 +686,6 @@
                         } Gestió d'Exàmens</h2>
                     </header>
                     <div class="flex flex-grow overflow-hidden">
-                        <!-- LEFT: Create & List -->
                         <div class="w-1/3 border-r p-4 overflow-y-auto bg-gray-50">
                             <div class="mb-6 bg-white p-4 rounded-xl border shadow-sm">
                                 <h3 class="font-bold mb-2">Nou Examen</h3>
@@ -509,54 +693,36 @@
                                     <input id="ex-title" type="text" placeholder="Títol" class="w-full p-2 border rounded" required>
                                     <input id="ex-desc" type="text" placeholder="Descripció" class="w-full p-2 border rounded">
                                     <input id="ex-date" type="date" class="w-full p-2 border rounded" required>
-                                    <div class="max-h-32 overflow-y-auto border rounded p-2 bg-gray-50">
-                                        <p class="text-xs font-bold mb-1">Assignar a:</p>
-                                        ${state.students
-                                          .map(
-                                            (s) => `
-                                            <div class="flex items-center gap-2">
-                                                <input type="checkbox" checked onchange="window.toggleExamStudent('${s.username}')">
-                                                <span class="text-sm">${s.name}</span>
-                                            </div>
-                                        `
-                                          )
-                                          .join("")}
-                                    </div>
+                                    <div class="max-h-32 overflow-y-auto border rounded p-2 bg-gray-50"><p class="text-xs font-bold mb-1">Assignar a:</p>${state.students
+                                      .map(
+                                        (s) =>
+                                          `<div class="flex items-center gap-2"><input type="checkbox" checked onchange="window.toggleExamStudent('${s.username}')"><span class="text-sm">${s.name}</span></div>`
+                                      )
+                                      .join("")}</div>
                                     <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Crear</button>
                                 </form>
                             </div>
                             <h3 class="font-bold mb-2">Històric</h3>
-                            <ul class="space-y-2">
-                                ${state.exams
-                                  .map(
-                                    (e) => `
-                                    <li onclick="window.selectExam(${
-                                      e.id
-                                    })" class="p-3 bg-white rounded border cursor-pointer hover:bg-blue-50 ${
-                                      state.selectedExam?.id === e.id
-                                        ? "border-blue-500 ring-1 ring-blue-500"
-                                        : ""
-                                    }">
-                                        <div class="font-bold text-sm">${
-                                          e.title
-                                        }</div>
-                                        <div class="text-xs text-gray-500">${
-                                          e.date
-                                        }</div>
-                                    </li>
-                                `
-                                  )
-                                  .join("")}
-                            </ul>
+                            <ul class="space-y-2">${state.exams
+                              .map(
+                                (e) =>
+                                  `<li onclick="window.selectExam(${
+                                    e.id
+                                  })" class="p-3 bg-white rounded border cursor-pointer hover:bg-blue-50 ${
+                                    state.selectedExam?.id === e.id
+                                      ? "border-blue-500 ring-1 ring-blue-500"
+                                      : ""
+                                  }"><div class="font-bold text-sm">${
+                                    e.title
+                                  }</div><div class="text-xs text-gray-500">${
+                                    e.date
+                                  }</div></li>`
+                              )
+                              .join("")}</ul>
                         </div>
-                        <!-- RIGHT: Grading -->
-                        <div class="w-2/3 p-6 overflow-y-auto">
-                            ${gradingHtml}
-                        </div>
+                        <div class="w-2/3 p-6 overflow-y-auto">${gradingHtml}</div>
                     </div>
-                </div>
-            `;
-        // Attach selectExam to window scope needed? Yes, done.
+                </div>`;
         window.selectExam = selectExam;
       }
 
@@ -579,11 +745,9 @@
         const title = document.getElementById("hw-title").value;
         const desc = document.getElementById("hw-desc").value;
         const date = document.getElementById("hw-date").value;
-
         if (!title || !date) return alert("Falten camps");
         if (state.newHomeworkStudents.length === 0)
           return alert("Selecciona alumnes");
-
         const { data, error } = await supabase
           .from("homeworks")
           .insert([
@@ -598,13 +762,11 @@
             },
           ])
           .select();
-
         if (!error && data) {
           alert("Deures creats!");
           state.teacherHomeworks.push(data[0]);
           renderApp();
         } else {
-          console.error(error);
           alert("Error creant deures");
         }
       };
@@ -626,19 +788,16 @@
       };
 
       window.toggleHwStudent = (username) => {
-        if (state.newHomeworkStudents.includes(username)) {
+        if (state.newHomeworkStudents.includes(username))
           state.newHomeworkStudents = state.newHomeworkStudents.filter(
             (u) => u !== username
           );
-        } else {
-          state.newHomeworkStudents.push(username);
-        }
+        else state.newHomeworkStudents.push(username);
       };
 
       function renderHomeworkManager(container) {
         if (state.isLoadingData)
           return (container.innerHTML = `<div class="p-10 text-center">Carregant...</div>`);
-
         const listHtml =
           state.teacherHomeworks.length === 0
             ? '<p class="text-gray-500">No hi ha deures.</p>'
@@ -650,27 +809,7 @@
                     assignedCount > 0
                       ? Math.round((completedCount / assignedCount) * 100)
                       : 0;
-
-                  return `
-                    <li class="bg-white border rounded-lg p-4 shadow-sm relative">
-                        <div class="flex justify-between items-start">
-                            <div>
-                                <h4 class="font-bold text-gray-800">${hw.title}</h4>
-                                <p class="text-gray-600 text-sm">${hw.description}</p>
-                            </div>
-                            <button onclick="window.deleteHomework(${hw.id})" class="text-gray-400 hover:text-red-500">${Icons.Trash}</button>
-                        </div>
-                        <div class="mt-3 flex items-center justify-between text-xs text-gray-500">
-                            <span>📅 ${hw.due_date}</span>
-                            <span>👥 ${assignedCount} alumnes</span>
-                        </div>
-                        <div class="mt-2 flex items-center gap-2">
-                            <div class="w-full bg-gray-200 rounded-full h-2">
-                                <div class="bg-green-600 h-2 rounded-full" style="width: ${percent}%"></div>
-                            </div>
-                            <span class="text-xs font-bold text-green-700">${completedCount}/${assignedCount}</span>
-                        </div>
-                    </li>`;
+                  return `<li class="bg-white border rounded-lg p-4 shadow-sm relative"><div class="flex justify-between items-start"><div><h4 class="font-bold text-gray-800">${hw.title}</h4><p class="text-gray-600 text-sm">${hw.description}</p></div><button onclick="window.deleteHomework(${hw.id})" class="text-gray-400 hover:text-red-500">${Icons.Trash}</button></div><div class="mt-3 flex items-center justify-between text-xs text-gray-500"><span>📅 ${hw.due_date}</span><span>👥 ${assignedCount} alumnes</span></div><div class="mt-2 flex items-center gap-2"><div class="w-full bg-gray-200 rounded-full h-2"><div class="bg-green-600 h-2 rounded-full" style="width: ${percent}%"></div></div><span class="text-xs font-bold text-green-700">${completedCount}/${assignedCount}</span></div></li>`;
                 })
                 .join("");
 
@@ -685,7 +824,6 @@
                         } Gestió de Deures</h2>
                     </header>
                     <div class="flex flex-grow overflow-hidden">
-                        <!-- LEFT: Create -->
                         <div class="w-1/3 border-r p-4 overflow-y-auto bg-green-50">
                             <div class="bg-white p-4 rounded-xl border border-green-200 shadow-sm">
                                 <h3 class="font-bold mb-2 text-green-800">Assignar Nous Deures</h3>
@@ -693,38 +831,24 @@
                                     <input id="hw-title" type="text" placeholder="Títol" class="w-full p-2 border rounded" required>
                                     <textarea id="hw-desc" placeholder="Descripció" class="w-full p-2 border rounded" rows="3"></textarea>
                                     <input id="hw-date" type="date" class="w-full p-2 border rounded" required>
-                                    <div class="max-h-40 overflow-y-auto border rounded p-2 bg-gray-50">
-                                        <p class="text-xs font-bold mb-1">Assignar a:</p>
-                                        ${state.students
-                                          .map(
-                                            (s) => `
-                                            <div class="flex items-center gap-2">
-                                                <input type="checkbox" checked onchange="window.toggleHwStudent('${s.username}')">
-                                                <span class="text-sm">${s.name}</span>
-                                            </div>
-                                        `
-                                          )
-                                          .join("")}
-                                    </div>
+                                    <div class="max-h-40 overflow-y-auto border rounded p-2 bg-gray-50"><p class="text-xs font-bold mb-1">Assignar a:</p>${state.students
+                                      .map(
+                                        (s) =>
+                                          `<div class="flex items-center gap-2"><input type="checkbox" checked onchange="window.toggleHwStudent('${s.username}')"><span class="text-sm">${s.name}</span></div>`
+                                      )
+                                      .join("")}</div>
                                     <button type="submit" class="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700">Assignar</button>
                                 </form>
                             </div>
                         </div>
-                        <!-- RIGHT: List -->
-                        <div class="w-2/3 p-6 overflow-y-auto bg-gray-50">
-                            <h3 class="font-bold text-lg mb-4 text-gray-700">Deures Assignats</h3>
-                            <ul class="grid gap-4 grid-cols-1 lg:grid-cols-2">
-                                ${listHtml}
-                            </ul>
-                        </div>
+                        <div class="w-2/3 p-6 overflow-y-auto bg-gray-50"><h3 class="font-bold text-lg mb-4 text-gray-700">Deures Assignats</h3><ul class="grid gap-4 grid-cols-1 lg:grid-cols-2">${listHtml}</ul></div>
                     </div>
-                </div>
-            `;
+                </div>`;
       }
 
-      // --- ALUMNE: NOTES ---
+      // --- ALUMNE: NOTES & DEURES (simplificat per brevetat, igual que l'anterior) ---
       async function fetchStudentGrades() {
-        state.isLoadingData = true;
+        /* ... igual que anterior ... */ state.isLoadingData = true;
         renderApp();
         const { data: gradesData } = await supabase
           .from("grades")
@@ -749,7 +873,6 @@
         state.isLoadingData = false;
         renderApp();
       }
-
       function renderStudentGrades(container) {
         const getColor = (s) =>
           s >= 9
@@ -764,44 +887,24 @@
             ? `<div class="text-center py-10 text-gray-500">No tens notes.</div>`
             : state.myGrades
                 .map(
-                  (g) => `
-                    <div class="bg-white border rounded-xl p-5 shadow-sm mb-4 flex justify-between items-center">
-                        <div>
-                            <div class="flex items-center gap-2 mb-1">
-                                <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-bold uppercase">${
-                                  g.exam.subject || "General"
-                                }</span>
-                                <span class="text-sm text-gray-500">${
-                                  g.exam.date
-                                }</span>
-                            </div>
-                            <h3 class="text-lg font-bold text-gray-800">${
-                              g.exam.title
-                            }</h3>
-                            ${
-                              g.feedback
-                                ? `<div class="mt-2 text-sm text-gray-600 bg-gray-50 p-2 rounded italic">"${g.feedback}"</div>`
-                                : ""
-                            }
-                        </div>
-                        <div class="text-3xl font-bold ${getColor(g.score)}">${
-                    g.score
-                  }</div>
-                    </div>`
+                  (g) =>
+                    `<div class="bg-white border rounded-xl p-5 shadow-sm mb-4 flex justify-between items-center"><div><div class="flex items-center gap-2 mb-1"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-bold uppercase">${
+                      g.exam.subject || "General"
+                    }</span><span class="text-sm text-gray-500">${
+                      g.exam.date
+                    }</span></div><h3 class="text-lg font-bold text-gray-800">${
+                      g.exam.title
+                    }</h3>${
+                      g.feedback
+                        ? `<div class="mt-2 text-sm text-gray-600 bg-gray-50 p-2 rounded italic">"${g.feedback}"</div>`
+                        : ""
+                    }</div><div class="text-3xl font-bold ${getColor(
+                      g.score
+                    )}">${g.score}</div></div>`
                 )
                 .join("");
-
-        container.innerHTML = `
-                <div class="w-full max-w-4xl px-4 animate-fade-in py-6">
-                    <header class="flex items-center gap-4 mb-6 border-b pb-4 bg-white p-4 rounded-xl shadow-sm">
-                        <button onclick="window.goBack()" class="text-gray-600">${Icons.Back}</button>
-                        <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2"><span class="text-yellow-600">${Icons.Academic}</span> Les Meves Notes</h2>
-                    </header>
-                    <div class="space-y-4">${listHtml}</div>
-                </div>`;
+        container.innerHTML = `<div class="w-full max-w-4xl px-4 animate-fade-in py-6"><header class="flex items-center gap-4 mb-6 border-b pb-4 bg-white p-4 rounded-xl shadow-sm"><button onclick="window.goBack()" class="text-gray-600">${Icons.Back}</button><h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2"><span class="text-yellow-600">${Icons.Academic}</span> Les Meves Notes</h2></header><div class="space-y-4">${listHtml}</div></div>`;
       }
-
-      // --- ALUMNE: DEURES ---
       async function fetchStudentHomework() {
         state.isLoadingData = true;
         renderApp();
@@ -819,7 +922,6 @@
         state.isLoadingData = false;
         renderApp();
       }
-
       window.toggleHomeworkCompletion = async (id) => {
         const hwIndex = state.myHomework.findIndex((h) => h.id == id);
         if (hwIndex === -1) return;
@@ -829,7 +931,6 @@
         if (completedBy.includes(username))
           completedBy = completedBy.filter((u) => u !== username);
         else completedBy.push(username);
-
         state.myHomework[hwIndex].completed_by = completedBy;
         renderApp();
         await supabase
@@ -837,7 +938,6 @@
           .update({ completed_by: completedBy })
           .eq("id", id);
       };
-
       function renderStudentHomework(container) {
         let listHtml =
           state.myHomework.length === 0
@@ -854,54 +954,32 @@
                     : isLate
                     ? "bg-red-50 border-red-200"
                     : "bg-white border-gray-200";
-                  return `
-                        <div class="border rounded-xl p-5 shadow-sm flex flex-col sm:flex-row gap-4 mb-4 ${cardClass}">
-                            <div class="flex-grow">
-                                <div class="flex items-center gap-2 mb-1">
-                                    <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-bold uppercase">${
-                                      hw.subject || "General"
-                                    }</span>
-                                    ${
-                                      isCompleted
-                                        ? '<span class="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">Fet</span>'
-                                        : ""
-                                    }
-                                </div>
-                                <h3 class="text-lg font-bold text-gray-800 ${
-                                  isCompleted
-                                    ? "line-through text-gray-500"
-                                    : ""
-                                }">${hw.title}</h3>
-                                <p class="text-gray-600 mt-2 text-sm">${
-                                  hw.description || ""
-                                }</p>
-                            </div>
-                            <div class="flex flex-col justify-between items-end min-w-[140px]">
-                                <div class="flex items-center gap-1 text-lg font-bold ${
-                                  !isCompleted && isLate
-                                    ? "text-red-600"
-                                    : "text-gray-800"
-                                }">${Icons.Clock} ${hw.due_date}</div>
-                                <button onclick="window.toggleHomeworkCompletion(${
-                                  hw.id
-                                })" class="w-full py-2 px-3 rounded-lg font-semibold text-sm transition-colors ${
+                  return `<div class="border rounded-xl p-5 shadow-sm flex flex-col sm:flex-row gap-4 mb-4 ${cardClass}"><div class="flex-grow"><div class="flex items-center gap-2 mb-1"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-bold uppercase">${
+                    hw.subject || "General"
+                  }</span>${
+                    isCompleted
+                      ? '<span class="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">Fet</span>'
+                      : ""
+                  }</div><h3 class="text-lg font-bold text-gray-800 ${
+                    isCompleted ? "line-through text-gray-500" : ""
+                  }">${hw.title}</h3><p class="text-gray-600 mt-2 text-sm">${
+                    hw.description || ""
+                  }</p></div><div class="flex flex-col justify-between items-end min-w-[140px]"><div class="flex items-center gap-1 text-lg font-bold ${
+                    !isCompleted && isLate ? "text-red-600" : "text-gray-800"
+                  }">${Icons.Clock} ${
+                    hw.due_date
+                  }</div><button onclick="window.toggleHomeworkCompletion(${
+                    hw.id
+                  })" class="w-full py-2 px-3 rounded-lg font-semibold text-sm transition-colors ${
                     isCompleted
                       ? "bg-white border border-green-600 text-green-700"
                       : "bg-green-600 text-white"
-                  }">${isCompleted ? "Desmarcar" : "Marcar Fet"}</button>
-                            </div>
-                        </div>`;
+                  }">${
+                    isCompleted ? "Desmarcar" : "Marcar Fet"
+                  }</button></div></div>`;
                 })
                 .join("");
-
-        container.innerHTML = `
-                <div class="w-full max-w-4xl px-4 animate-fade-in py-6">
-                    <header class="flex items-center gap-4 mb-6 border-b pb-4 bg-white p-4 rounded-xl shadow-sm">
-                        <button onclick="window.goBack()" class="text-gray-600">${Icons.Back}</button>
-                        <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2"><span class="text-green-600">${Icons.Book}</span> Els Meus Deures</h2>
-                    </header>
-                    <div>${listHtml}</div>
-                </div>`;
+        container.innerHTML = `<div class="w-full max-w-4xl px-4 animate-fade-in py-6"><header class="flex items-center gap-4 mb-6 border-b pb-4 bg-white p-4 rounded-xl shadow-sm"><button onclick="window.goBack()" class="text-gray-600">${Icons.Back}</button><h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2"><span class="text-green-600">${Icons.Book}</span> Els Meus Deures</h2></header><div>${listHtml}</div></div>`;
       }
 
       // --- XAT ---
@@ -913,7 +991,6 @@
         const activeChat = state.currentChatId
           ? myConvs.find((c) => c.id === state.currentChatId)
           : null;
-
         const chatListHtml = myConvs
           .map((c) => {
             const name = c.isGroup
@@ -926,16 +1003,22 @@
             return `<div class="p-4 border-b cursor-pointer transition ${isActive}" onclick="window.selectChat('${c.id}')"><h4 class="font-bold text-gray-800">${name}</h4></div>`;
           })
           .join("");
-
         let messagesHtml = activeChat
           ? activeChat.messages
               .map((msg) => {
                 const isMe = msg.sender === user.username;
+                const isSys = msg.sender === "system";
+                if (isSys)
+                  return `<div class="text-center my-2"><span class="text-xs bg-gray-200 rounded-full px-2 py-1">${msg.text}</span></div>`;
                 return `<div class="flex flex-col mb-2 ${
                   isMe ? "items-end" : "items-start"
                 }"><div class="message-bubble ${
                   isMe ? "message-sent" : "message-received"
-                } bg-white"><p>${msg.text}</p></div></div>`;
+                } bg-white"><p class="text-xs font-bold text-blue-600 mb-1">${
+                  msg.sender !== user.username && activeChat.isGroup
+                    ? msg.sender
+                    : ""
+                }</p><p>${msg.text}</p></div></div>`;
               })
               .join("")
           : '<div class="h-full flex items-center justify-center text-gray-500">Selecciona una conversa</div>';
@@ -1000,7 +1083,10 @@
         else renderApp();
       };
       window.goBack = () => {
-        state.view = "dashboard";
+        state.view =
+          state.currentUser.role === "Administrador"
+            ? "admin_dashboard"
+            : "dashboard";
         renderApp();
       };
       window.logout = () => {
@@ -1013,16 +1099,42 @@
         renderApp();
       };
       window.createChatPrompt = async () => {
-        const username = prompt("Usuari:");
-        if (!username) return;
-        if (!state.users.find((u) => u.username === username))
-          return alert("No trobat");
+        // Simplified for demo: Just ask for ONE username. In real app, modal with checkboxes.
+        const input = prompt(
+          "Introdueix nom d'usuari (o varis separats per coma per grup):"
+        );
+        if (!input) return;
+        const participants = input
+          .split(",")
+          .map((s) => s.trim())
+          .filter((s) => s !== state.currentUser.username);
+
+        // Check if users exist
+        const validParticipants = participants.filter((p) =>
+          state.users.find((u) => u.username === p)
+        );
+        if (validParticipants.length === 0) return alert("Usuaris no trobats.");
+
+        const isGroup = validParticipants.length > 1;
+        let groupName = null;
+        if (isGroup) {
+          groupName = prompt("Nom del grup:");
+          if (!groupName) return;
+        }
+
+        const allParticipants = [
+          state.currentUser.username,
+          ...validParticipants,
+        ];
         const newConv = {
           id: `conv-${Date.now()}`,
-          participants: [state.currentUser.username, username],
+          participants: allParticipants,
           messages: [],
-          isGroup: false,
+          isGroup,
+          name: groupName,
+          creator: state.currentUser.username,
         };
+
         state.conversations.push(newConv);
         state.currentChatId = newConv.id;
         await supabase.from("conversations").insert([newConv]);
