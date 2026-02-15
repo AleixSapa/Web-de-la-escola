@@ -416,9 +416,50 @@
         }
       };
 
+      window.addUserToGroup = async () => {
+        const group = state.selectedGroupForManagement;
+        const select = document.getElementById("adm-add-user-select");
+        if (!group || !select) return;
+
+        const username = select.value;
+        if (!username) return alert("Selecciona un usuari per afegir.");
+        if (group.participants.includes(username)) {
+          return alert("Aquest usuari ja és dins del grup.");
+        }
+
+        const newParticipants = [...group.participants, username];
+        const sysMsg = {
+          id: `msg-sys-${Date.now()}`,
+          text: `${username} afegit per l'administrador.`,
+          sender: "system",
+          timestamp: new Date().toISOString(),
+        };
+
+        const { error } = await supabase
+          .from("conversations")
+          .update({
+            participants: newParticipants,
+            messages: [...group.messages, sysMsg],
+          })
+          .eq("id", group.id);
+
+        if (!error) {
+          const idx = state.conversations.findIndex((c) => c.id === group.id);
+          state.conversations[idx].participants = newParticipants;
+          state.conversations[idx].messages.push(sysMsg);
+          renderAdminGroupModal();
+          alert("Usuari afegit al grup.");
+        } else {
+          alert("Error afegint l'usuari al grup.");
+        }
+      };
+
       function renderAdminGroupModal() {
         const group = state.selectedGroupForManagement;
         const modal = document.getElementById("modal-container");
+        const availableUsers = state.users
+          .map((u) => u.username)
+          .filter((username) => !group?.participants.includes(username));
         if (!group) {
           modal.classList.add("hidden");
           return;
@@ -433,6 +474,21 @@
                         <button onclick="window.closeModal()" class="text-gray-500 hover:text-gray-800 text-xl">&times;</button>
                     </header>
                     <div class="p-4 max-h-96 overflow-y-auto">
+                        <div class="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-md">
+                            <p class="text-sm font-medium text-blue-900 mb-2">Afegir participant</p>
+                            <div class="flex gap-2">
+                                <select id="adm-add-user-select" class="flex-1 p-2 border rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <option value="">Selecciona una persona...</option>
+                                    ${availableUsers
+                                      .map(
+                                        (username) =>
+                                          `<option value="${username}">${username}</option>`
+                                      )
+                                      .join("")}
+                                </select>
+                                <button onclick="window.addUserToGroup()" class="bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700">Afegir</button>
+                            </div>
+                        </div>
                         <p class="text-sm text-gray-500 mb-2">Participants:</p>
                         <ul class="space-y-2">
                             ${group.participants
