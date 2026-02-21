@@ -108,6 +108,8 @@
         isLoadingData: false,
         birthdays: [],
         events: [],
+        calendarProposals: [],
+        calendarInterval: null,
         currentCalendarMonth: new Date().getMonth(),
         currentCalendarYear: new Date().getFullYear(),
         // ESTAT DEL JOC DE PRÀCTICA
@@ -212,6 +214,27 @@
         }
       }
 
+      window.startNotificationChecker = () => {
+         if(state.calendarInterval) clearInterval(state.calendarInterval);
+         if(state.currentUser?.role === "Alumne") {
+             const checkNotifications = async () => {
+                 const { data, error } = await supabase.from("calendar_proposals")
+                    .select("*")
+                    .eq("created_by", state.currentUser.username)
+                    .eq("status", "rejected")
+                    .eq("read", false);
+                 if(!error && data && data.length > 0) {
+                     for(let p of data) {
+                         alert(`⚠️ La teva proposta al calendari "${p.name}" ha estat rebutjada.`);
+                         await supabase.from("calendar_proposals").update({read: true}).eq("id", p.id);
+                     }
+                 }
+             };
+             checkNotifications();
+             state.calendarInterval = setInterval(checkNotifications, 10000);
+         }
+      };
+
       // --- VISTA: LOGIN ---
       function renderLogin(container) {
         container.innerHTML = `
@@ -256,6 +279,7 @@
               state.currentUser = user;
               if (user.role === "Administrador") state.view = "admin_dashboard";
               else state.view = "dashboard";
+              window.startNotificationChecker();
               renderApp();
             } else {
               errorMsg.textContent = "Usuari o contrasenya incorrectes.";
@@ -1428,6 +1452,10 @@
         state.isLoadingData = true;
         renderApp();
         try {
+          const { data: pData } = await supabase.from("calendar_proposals").select("*");
+          state.calendarProposals = pData || [];
+        } catch (e) {}
+        try {
           const { data: bData } = await supabase.from("birthdays").select("*");
           state.birthdays = bData || [];
         } catch (e) {
@@ -1471,35 +1499,53 @@
         const d = String(day).padStart(2, '0');
         const date = type === "event" ? `${year}-${m}-${d}` : `2000-${m}-${d}`;
 
-        const newItem = {
-          name,
-          date,
-          created_by: state.currentUser.username,
-        };
-        
-        const table = type === "event" ? "events" : "birthdays";
+        const isStudent = state.currentUser.role === 'Alumne';
 
-        const { data, error } = await supabase
-          .from(table)
-          .insert([newItem])
-          .select();
-
-        if (!error && data) {
-          if (type === "event") state.events.push(data[0]);
-          else state.birthdays.push(data[0]);
-          window.closeModal();
-          renderApp();
-          alert(type === "event" ? "Esdeveniment afegit correctament!" : "Aniversari afegit correctament!");
+        if(isStudent){
+            const newItem = {
+                type,
+                name,
+                date,
+                created_by: state.currentUser.username,
+                status: "pending",
+                read: false
+            };
+            const { data, error } = await supabase.from("calendar_proposals").insert([newItem]).select();
+            if (!error && data) {
+              state.calendarProposals.push(data[0]);
+              window.closeModal();
+              renderApp();
+              alert("Proposta enviada als professors correctament!");
+            } else {
+              console.error("Supabase Error:", error);
+              alert("Error guardant la proposta. Has creat la taula 'calendar_proposals'?");
+            }
         } else {
-          console.error("Supabase Error:", error);
-          alert(`Error de la base de dades: ${error?.message || "Desconegut"}. Has creat la taula '${table}' a Supabase?`);
+            const newItem = {
+              name,
+              date,
+              created_by: state.currentUser.username,
+            };
+            const table = type === "event" ? "events" : "birthdays";
+            const { data, error } = await supabase.from(table).insert([newItem]).select();
+            if (!error && data) {
+              if (type === "event") state.events.push(data[0]);
+              else state.birthdays.push(data[0]);
+              window.closeModal();
+              renderApp();
+              alert(type === "event" ? "Esdeveniment afegit correctament!" : "Aniversari afegit correctament!");
+            } else {
+              console.error("Supabase Error:", error);
+              alert(`Error de la base de dades: ${error?.message || "Desconegut"}. Has creat la taula '${table}' a Supabase?`);
+            }
         }
       };
 
       window.openAddCalendarItemModal = () => {
         const canAddEvent = state.currentUser.role === 'Professor' || state.currentUser.role === 'Administrador';
+        const isStudent = state.currentUser.role === 'Alumne';
         
-        const typeSelectorHTML = canAddEvent ? `
+        const typeSelectorHTML = `
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Tipus d'entrada</label>
                 <select id="ci-type" class="w-full p-2 border rounded focus:ring-2 focus:ring-yellow-500 outline-none" onchange="document.getElementById('year-container').classList.toggle('hidden', this.value === 'birthday')">
@@ -1507,20 +1553,23 @@
                     <option value="event">Esdeveniment</option>
                 </select>
             </div>
-        ` : '';
+        `;
 
-        const yearInputHTML = canAddEvent ? `
+        const yearInputHTML = `
             <div id="year-container" class="w-1/3 hidden">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Any</label>
                 <input id="ci-year" type="number" value="${state.currentCalendarYear}" class="w-full p-2 border rounded focus:ring-2 focus:ring-yellow-500 outline-none">
             </div>
-        ` : '';
+        `;
+
+        const submitText = isStudent ? "Proposar" : "Guardar";
+        const titleText = isStudent ? "Proposar al Calendari" : "Afegir al Calendari";
 
         const modal = document.getElementById("modal-container");
         modal.innerHTML = `
           <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in">
               <header class="p-4 border-b flex justify-between items-center bg-gray-50">
-                  <h3 class="font-bold text-lg text-gray-800">Afegir al Calendari</h3>
+                  <h3 class="font-bold text-lg text-gray-800">${titleText}</h3>
                   <button onclick="window.closeModal()" class="text-gray-500 text-xl">&times;</button>
               </header>
               <form onsubmit="window.saveCalendarItem(event)" class="p-6 space-y-4">
@@ -1534,7 +1583,7 @@
                           <label class="block text-sm font-medium text-gray-700 mb-1">Dia</label>
                           <input id="ci-day" type="number" min="1" max="31" class="w-full p-2 border rounded focus:ring-2 focus:ring-yellow-500 outline-none" required>
                       </div>
-                      <div class="${canAddEvent ? 'w-1/3' : 'w-2/3'}">
+                      <div class="w-1/3">
                           <label class="block text-sm font-medium text-gray-700 mb-1">Mes</label>
                           <select id="ci-month" class="w-full p-2 border rounded focus:ring-2 focus:ring-yellow-500 outline-none" required>
                               <option value="0">Gener</option>
@@ -1553,11 +1602,72 @@
                       </div>
                       ${yearInputHTML}
                   </div>
-                  <button type="submit" class="w-full bg-yellow-500 text-white py-2 rounded-lg font-bold hover:bg-yellow-600 transition">Guardar</button>
+                  <button type="submit" class="w-full bg-yellow-500 text-white py-2 rounded-lg font-bold hover:bg-yellow-600 transition">${submitText}</button>
               </form>
           </div>
         `;
         modal.classList.remove("hidden");
+      };
+
+      window.openCalendarProposalsModal = () => {
+        const pending = state.calendarProposals.filter(p => p.status === "pending");
+        const listHtml = pending.length === 0 ? '<p class="text-gray-500">No hi ha propostes pendents.</p>' :
+            pending.map(p => `
+                <div class="border rounded p-3 mb-2 flex justify-between items-center bg-gray-50">
+                    <div>
+                        <p class="font-bold text-gray-800">${p.name}</p>
+                        <p class="text-xs text-gray-500">Data: ${p.date} (${p.type === 'event' ? 'Esdeveniment' : 'Aniversari'}) | Per: @${p.created_by}</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="window.acceptProposal(${p.id})" class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600">${Icons.Check}</button>
+                        <button onclick="window.rejectProposal(${p.id})" class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">${Icons.Trash}</button>
+                    </div>
+                </div>
+            `).join("");
+
+        const modal = document.getElementById("modal-container");
+        modal.innerHTML = `
+          <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in max-h-[80vh] flex flex-col">
+              <header class="p-4 border-b flex justify-between items-center bg-gray-50">
+                  <h3 class="font-bold text-lg text-gray-800">Propostes (${pending.length})</h3>
+                  <button onclick="window.closeModal()" class="text-gray-500 text-xl">&times;</button>
+              </header>
+              <div class="p-4 overflow-y-auto flex-grow">
+                 ${listHtml}
+              </div>
+          </div>
+        `;
+        modal.classList.remove("hidden");
+      };
+
+      window.acceptProposal = async (id) => {
+          const prop = state.calendarProposals.find(p => p.id === id);
+          if(!prop) return;
+
+          const table = prop.type === "event" ? "events" : "birthdays";
+          const newItem = { name: prop.name, date: prop.date, created_by: prop.created_by };
+          
+          await supabase.from(table).insert([newItem]);
+          if(prop.type === "event") state.events.push({...newItem, id: Date.now()});
+          else state.birthdays.push({...newItem, id: Date.now()});
+
+          await supabase.from("calendar_proposals").update({status: "accepted", read: true}).eq("id", id);
+          prop.status = "accepted";
+          
+          window.openCalendarProposalsModal();
+          renderApp();
+      };
+
+      window.rejectProposal = async (id) => {
+          const prop = state.calendarProposals.find(p => p.id === id);
+          if(!prop) return;
+
+          await supabase.from("calendar_proposals").update({status: "rejected", read: false}).eq("id", id);
+          prop.status = "rejected";
+          prop.read = false;
+
+          window.openCalendarProposalsModal();
+          renderApp();
       };
 
       function renderCalendar(container) {
@@ -1664,10 +1774,17 @@
                </div>
                <div class="flex items-center gap-3">
                   ${canAddEvent ? `
+                  <button onclick="window.openCalendarProposalsModal()" class="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-blue-600 transition">
+                    Propostes (${state.calendarProposals.filter(p => p.status === 'pending').length})
+                  </button>
                   <button onclick="window.openAddCalendarItemModal()" class="bg-yellow-500 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-yellow-600 transition">
                     Afegir
                   </button>
-                  ` : ''}
+                  ` : `
+                  <button onclick="window.openAddCalendarItemModal()" class="bg-yellow-500 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-yellow-600 transition">
+                    Proposar al Calendari
+                  </button>
+                  `}
                   <div class="flex items-center bg-gray-100 rounded-lg p-1">
                     <button onclick="window.changeCalendarMonth(-1)" class="p-1 hover:bg-white rounded transition">${
                       Icons.Back
@@ -1942,6 +2059,7 @@
       };
 
       window.logout = () => {
+        if(state.calendarInterval) clearInterval(state.calendarInterval);
         state.currentUser = null;
         state.view = "login";
         renderApp();
