@@ -1,0 +1,1974 @@
+<!DOCTYPE html>
+<html lang="ca">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Portal Escolar</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <style>
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      }
+      .animate-fade-in {
+        animation: fadeIn 0.5s ease-out forwards;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background-color: rgba(0, 0, 0, 0.2);
+        border-radius: 20px;
+      }
+      .message-bubble {
+        max-width: 75%;
+        padding: 8px 12px;
+        border-radius: 8px;
+        position: relative;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        word-wrap: break-word;
+      }
+      .message-sent {
+        background-color: #dcf8c6;
+        margin-left: auto;
+        border-top-right-radius: 0;
+      }
+      .message-received {
+        background-color: #ffffff;
+        margin-right: auto;
+        border-top-left-radius: 0;
+      }
+      #chat-messages-container {
+        background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.08'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100 min-h-screen text-gray-800">
+    <div id="app" class="w-full h-screen flex flex-col">
+      <div
+        id="loading-screen"
+        class="flex flex-col items-center justify-center h-full"
+      >
+        <div
+          class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"
+        ></div>
+        <p class="text-gray-600 font-medium">Carregant dades...</p>
+      </div>
+    </div>
+
+    <!-- Modal Container -->
+    <div
+      id="modal-container"
+      class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+    >
+      <!-- Content injected dynamically -->
+    </div>
+
+    <script type="module">
+      // --- CONFIGURACIÓ ---
+      const SUPABASE_URL = "https://hocwnqqdyyinjrtczhdw.supabase.co";
+      const SUPABASE_KEY = "sb_publishable_X_TrrWex0GfBLIzbKFp1Cg_Xa97mziS";
+      const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+      // --- ESTAT GLOBAL ---
+      const state = {
+        currentUser: null,
+        view: "login",
+        users: [],
+        students: [],
+        conversations: [],
+        currentChatId: null,
+        selectedGroupForManagement: null,
+        newChatSearch: "",
+        newChatSelectedUsers: [],
+        myGrades: [],
+        myHomework: [],
+        myPracticeResults: [],
+        exams: [],
+        selectedExam: null,
+        examGrades: [],
+        teacherHomeworks: [],
+        newExamStudents: [],
+        newHomeworkStudents: [],
+        isLoadingData: false,
+        birthdays: [],
+        events: [],
+        currentCalendarMonth: new Date().getMonth(),
+        currentCalendarYear: new Date().getFullYear(),
+        // ESTAT DEL JOC DE PRÀCTICA
+        practiceGame: {
+          active: false,
+          qNum: 1,
+          maxQ: 25, // <-- 25 preguntes
+          score: 0,
+          currentAnswer: "", // <-- String per admetre lletres i números
+          text: "",
+          subject: "", // mates, catala, mixte
+        },
+      };
+
+      // --- ICONES SVG ---
+      const Icons = {
+        User: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.108a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.642Z" /></svg>`,
+        Lock: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 0 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H4.5a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>`,
+        Chat: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193l-3.722.537a59.014 59.014 0 0 1-5.032 0l-3.722-.537C3.347 17.1 2.5 16.136 2.5 15v-4.286c0-.97.616-1.813 1.5-2.097L6.6 6.49M20.25 8.511l-6.442-3.22a44.947 44.947 0 0 0-5.616 0L1.75 6.49m9.191 1.063c.22.046.45.082.68.118l3.45-1.725a2.25 2.25 0 0 1 2.158 1.162l.516 1.032a2.25 2.25 0 0 1-1.162 2.158l-3.45 1.725a1.125 1.125 0 0 1-1.229-.586l-.516-1.032a1.125 1.125 0 0 1 .586-1.229Zm-2.836.216a1.125 1.125 0 0 1-.586 1.229l-3.45 1.725a2.25 2.25 0 0 1-2.158-1.162l-.516-1.032a2.25 2.25 0 0 1 1.162-2.158l3.45-1.725c.22.046.45.082.68.118a1.125 1.125 0 0 1 .586 1.229Z" /></svg>`,
+        Logout: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m-3 0-3-3m0 0 3-3m-3 3H5.25" /></svg>`,
+        Academic: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 0 0-.491 6.347A48.627 48.627 0 0 1 12 20.904a48.627 48.627 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.57 50.57 0 0 0-2.658-.813A59.905 59.905 0 0 1 12 3.493a59.902 59.902 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0 1 12 13.489a50.702 50.702 0 0 1 7.74-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" /></svg>`,
+        Send: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" /></svg>`,
+        Back: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>`,
+        Book: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" /></svg>`,
+        Clock: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`,
+        Check: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`,
+        Trash: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>`,
+        UserPlus: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM4 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" /></svg>`,
+        Group: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-2.438c.157-.145.295-.303.43-1.528A4.375 4.375 0 0 0 16.25 8.25V6.75a4.5 4.5 0 1 0-9 0v1.5c0 .351.041.693.12 1.023l.05.16a.75.75 0 0 1-.97.854l-.066-.027a4.375 4.375 0 0 0-3.483 1.575 4.375 4.375 0 0 0-1.575 3.483c-.012.247-.027.495-.027.747v1.875a9.375 9.375 0 0 0 3.375 7.25Z" /></svg>`,
+        Puzzle: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8"><path stroke-linecap="round" stroke-linejoin="round" d="M14.25 6.087c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.036-.86-1.875-1.92-1.875s-1.92.84-1.92 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959v0a1.5 1.5 0 0 1-1.5 1.5H9.45c-.355 0-.676-.186-.959-.401A1.647 1.647 0 0 0 7.488 6c-1.036 0-1.875.86-1.875 1.92 0 .369.128.713.349 1.003.215.283.401.604.401.959v.933c0 .828-.672 1.5-1.5 1.5h0c-.355 0-.676.186-.959.401-.29.221-.634.349-1.003.349-1.036 0-1.875.86-1.875 1.92s.84 1.92 1.875 1.92c.369 0 .713-.128 1.003-.349.283-.215.604-.401.959-.401h0c.828 0 1.5.672 1.5 1.5v.933c0 .355-.186.676-.401.959-.221.29-.349.634-.349 1.003 0 1.036.86 1.875 1.92 1.875s1.92-.84 1.92-1.875c0-.369-.128-.713-.349-1.003-.215-.283-.401-.604-.401-.959v0a1.5 1.5 0 0 1 1.5-1.5h.963c.355 0 .676.186.959.401.29.221.634.349 1.003.349 1.036 0 1.875-.86 1.875-1.92s-.84-1.92-1.875-1.92c-.369 0-.713.128-1.003.349-.283.215-.604.401-.959.401h0a1.5 1.5 0 0 1-1.5-1.5v-.933c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.036-.86-1.875-1.92-1.875s-1.92.84-1.92 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959v0a1.5 1.5 0 0 1-1.5 1.5H14.55c.355 0 .676-.186.959-.401.29-.221.634-.349 1.003-.349 1.036 0 1.875.86 1.875 1.92s-.84 1.92-1.875 1.92c-.369 0-.713-.128-1.003-.349-.283-.215-.604-.401-.959-.401h0c-.828 0-1.5-.672-1.5-1.5v-1.05z" /></svg>`,
+        Calendar: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5m-9-6h.008v.008H12v-.008ZM12 15h.008v.008H12V15Zm0 2.25h.008v.008H12v-.008ZM9.75 15h.008v.008H9.75V15Zm0 2.25h.008v.008H9.75v-.008ZM7.5 15h.008v.008H7.5V15Zm0 2.25h.008v.008H7.5v-.008Zm6.75-4.5h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008V15Zm0 2.25h.008v.008h-.008v-.008Zm2.25-4.5h.008v.008H16.5v-.008Zm0 2.25h.008v.008H16.5V15Z" /></svg>`,
+        Cake: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8.25v-1.5m0 1.5c-1.355 0-2.697.056-4.024.166C6.845 8.51 6 9.473 6 10.608v2.513m6-4.871c1.355 0 2.697.056 4.024.166C17.155 8.51 18 9.473 18 10.608v2.513M15 8.25v-1.5m-6 1.5v-1.5m12 9.75-1.5.75a3.354 3.354 0 0 1-3 0 3.354 3.354 0 0 1-3 0 3.354 3.354 0 0 1-3 0 3.354 3.354 0 0 1-3 0L3 16.5m15-3.379a48.474 48.474 0 0 0-6-.371c-2.032 0-4.034.125-6 .371m12 0c.39.049.777.107 1.16.173 1.107.18 1.84 1.132 1.84 2.235v1.513c0 1.282-1.036 2.302-2.316 2.302H4.476c-1.28 0-2.316-1.02-2.316-2.302v-1.513c0-1.103.733-2.056 1.84-2.235a48.455 48.455 0 0 1 1.16-.173" /></svg>`,
+        Flag: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0 2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a48.524 48.524 0 0 1-.005-10.499l-3.11.732a9 9 0 0 1-6.085-.711l-.108-.054a9 9 0 0 0-6.208-.682L3 4.5M3 15V4.5" /></svg>`,
+      };
+
+      // --- FUNCIONS PRINCIPALS ---
+      async function initApp() {
+        try {
+          const { data: usersData } = await supabase.from("users").select("*");
+          if (usersData) {
+            state.users = usersData;
+            state.students = usersData.filter((u) => u.role === "Alumne");
+          }
+
+          const { data: convData } = await supabase
+            .from("conversations")
+            .select("*");
+          if (convData) state.conversations = convData;
+
+          renderApp();
+        } catch (err) {
+          console.error("Error inicialitzant:", err);
+          document.getElementById(
+            "app"
+          ).innerHTML = `<p class="text-red-500 text-center p-10">Error carregant l'aplicació.</p>`;
+        }
+      }
+
+      function renderApp() {
+        const app = document.getElementById("app");
+        app.innerHTML = "";
+
+        switch (state.view) {
+          case "login":
+            renderLogin(app);
+            break;
+          case "dashboard":
+            renderDashboard(app);
+            break;
+          case "chat":
+            renderChat(app);
+            break;
+          case "teacher_exams":
+            renderExamManager(app);
+            break;
+          case "teacher_homework":
+            renderHomeworkManager(app);
+            break;
+          case "student_grades":
+            renderStudentGrades(app);
+            break;
+          case "student_homework":
+            renderStudentHomework(app);
+            break;
+          case "student_practice_results":
+            renderStudentPracticeResults(app);
+            break;
+          case "student_practice_setup":
+            renderPracticeSetup(app);
+            break; // <-- NOU
+          case "student_practice_game":
+            renderStudentPracticeGame(app);
+            break;
+          case "admin_dashboard":
+            renderAdminDashboard(app);
+            break;
+          case "calendar":
+            renderCalendar(app);
+            break;
+          default:
+            renderDashboard(app);
+        }
+      }
+
+      // --- VISTA: LOGIN ---
+      function renderLogin(container) {
+        container.innerHTML = `
+                <div class="flex min-h-screen items-center justify-center p-4 bg-gray-100">
+                    <div class="bg-white p-8 md:p-10 rounded-2xl shadow-2xl w-full max-w-md transform transition-all duration-500 hover:scale-105">
+                        <div class="text-center mb-8">
+                            <h1 class="text-3xl font-bold text-gray-900">Portal Escolar</h1>
+                            <p class="text-gray-500 mt-2">Inicia sessió per accedir</p>
+                        </div>
+                        <form id="login-form" class="space-y-6">
+                            <div class="relative">
+                                <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">${Icons.User}</div>
+                                <input type="text" id="username" placeholder="Nom d'usuari" class="w-full rounded-md border-0 py-2.5 pl-10 pr-3 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-600 sm:text-sm" required />
+                            </div>
+                            <div class="relative">
+                                <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">${Icons.Lock}</div>
+                                <input type="password" id="password" placeholder="Contrasenya" class="w-full rounded-md border-0 py-2.5 pl-10 pr-3 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-600 sm:text-sm" required />
+                            </div>
+                            <p id="login-error" class="text-red-500 text-sm text-center hidden"></p>
+                            <button type="submit" class="flex w-full justify-center rounded-md bg-blue-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 transition-all">Inicia Sessió</button>
+                        </form>
+                    </div>
+                </div>
+            `;
+
+        document
+          .getElementById("login-form")
+          .addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const username = document.getElementById("username").value;
+            const password = document.getElementById("password").value;
+            const errorMsg = document.getElementById("login-error");
+
+            const { data: user, error } = await supabase
+              .from("users")
+              .select("*")
+              .eq("username", username)
+              .eq("password", password)
+              .maybeSingle();
+
+            if (user) {
+              state.currentUser = user;
+              if (user.role === "Administrador") state.view = "admin_dashboard";
+              else state.view = "dashboard";
+              renderApp();
+            } else {
+              errorMsg.textContent = "Usuari o contrasenya incorrectes.";
+              errorMsg.classList.remove("hidden");
+            }
+          });
+      }
+
+      // --- VISTA: DASHBOARD PRINCIPAL ---
+      function renderDashboard(container) {
+        const user = state.currentUser;
+
+        const header = `
+                <header class="bg-white shadow p-4 flex justify-between items-center mb-6">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-800">Hola, ${
+                          user.name
+                        }</h1>
+                        <p class="text-sm text-gray-500">Rol: ${user.role} ${
+          user.subject ? `(${user.subject})` : ""
+        }</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <a href="test.html" class="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition">
+                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                            </svg> Test
+                        </a>
+
+                        <button onclick="window.navigateTo('chat')" class="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition">
+                            ${Icons.Chat} Xat
+                        </button>
+                        <button onclick="window.navigateTo('calendar')" class="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition">
+                            ${Icons.Calendar} Calendari
+                        </button>
+                        <button onclick="window.logout()" class="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition">
+                            ${Icons.Logout} Sortir
+                        </button>
+                    </div>
+                </header>
+            `;
+
+        let content = "";
+
+        if (user.role === "Alumne") {
+          content = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 p-4 max-w-7xl mx-auto">
+                        
+                        <button onclick="window.navigateTo('student_practice_setup')" class="bg-indigo-600 p-6 rounded-2xl shadow-xl hover:scale-[1.02] transition-transform duration-300 group flex flex-col items-center justify-center text-center gap-4 text-white">
+                            <div class="bg-white/20 p-4 rounded-full group-hover:bg-white/30 transition-colors">
+                                ${Icons.Puzzle}
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold">Fer Pràctica</h3>
+                                <p class="text-indigo-100 text-sm mt-1">Mates i Català!</p>
+                            </div>
+                        </button>
+
+                        <button onclick="window.navigateTo('student_practice_results')" class="bg-white p-6 rounded-2xl shadow-xl hover:scale-[1.02] transition-transform duration-300 group border border-gray-100 flex items-center gap-4 text-left">
+                            <div class="bg-indigo-100 p-4 rounded-full group-hover:bg-indigo-200 transition-colors">
+                                <div class="text-indigo-700">${Icons.Puzzle}</div>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800">Resultats Pràctica</h3>
+                                <p class="text-gray-500 text-sm">Notes dels teus exercicis.</p>
+                            </div>
+                        </button>
+
+                        <button onclick="window.navigateTo('student_grades')" class="bg-white p-6 rounded-2xl shadow-xl hover:scale-[1.02] transition-transform duration-300 group border border-gray-100 flex items-center gap-4 text-left">
+                            <div class="bg-yellow-100 p-4 rounded-full group-hover:bg-yellow-200 transition-colors">
+                                <div class="text-yellow-700">${Icons.Academic}</div>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800">Notes d'Exàmens</h3>
+                                <p class="text-gray-500 text-sm">Consulta els teus resultats.</p>
+                            </div>
+                        </button>
+
+                        <button onclick="window.navigateTo('student_homework')" class="bg-white p-6 rounded-2xl shadow-xl hover:scale-[1.02] transition-transform duration-300 group border border-gray-100 flex items-center gap-4 text-left">
+                            <div class="bg-green-100 p-4 rounded-full group-hover:bg-green-200 transition-colors">
+                                <div class="text-green-700">${Icons.Book}</div>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800">Deures</h3>
+                                <p class="text-gray-500 text-sm">Tasques pendents.</p>
+                            </div>
+                        </button>
+                    </div>
+                `;
+        } else if (user.role === "Professor") {
+          content = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 max-w-4xl mx-auto">
+                        <button onclick="window.navigateTo('teacher_exams')" class="bg-white p-6 rounded-2xl shadow-xl hover:scale-[1.02] transition-transform duration-300 group border border-gray-100 flex items-center gap-4 text-left">
+                            <div class="bg-blue-100 p-4 rounded-full group-hover:bg-blue-200 transition-colors">
+                                <div class="text-blue-600">${
+                                  Icons.Academic
+                                }</div>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800">Gestió d'Exàmens</h3>
+                                <p class="text-gray-500 text-sm">Crear exàmens i posar notes.</p>
+                            </div>
+                        </button>
+                        <button onclick="window.navigateTo('teacher_homework')" class="bg-white p-6 rounded-2xl shadow-xl hover:scale-[1.02] transition-transform duration-300 group border border-gray-100 flex items-center gap-4 text-left">
+                            <div class="bg-green-100 p-4 rounded-full group-hover:bg-green-200 transition-colors">
+                                <div class="text-green-600">${Icons.Book}</div>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800">Gestió de Deures</h3>
+                                <p class="text-gray-500 text-sm">Assignar tasques als alumnes.</p>
+                            </div>
+                        </button>
+                    </div>
+                    <div class="mt-8 max-w-4xl mx-auto p-4">
+                        <h3 class="text-lg font-bold mb-4">Llistat d'Alumnes</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                            ${state.students
+                              .map(
+                                (s) => `
+                                <div class="bg-white p-3 rounded shadow text-sm">
+                                    <p class="font-bold">${s.name}</p>
+                                    <p class="text-gray-500">@${s.username}</p>
+                                </div>
+                            `
+                              )
+                              .join("")}
+                        </div>
+                    </div>
+                `;
+        }
+
+        container.innerHTML = `
+                <div class="animate-fade-in w-full h-full bg-gray-50 overflow-y-auto">
+                    ${header}
+                    ${content}
+                </div>
+            `;
+      }
+
+      // --- ALUMNE: MENÚ DE CONFIGURACIÓ DE PRÀCTICA ---
+      function renderPracticeSetup(container) {
+        container.innerHTML = `
+              <div class="w-full h-full bg-gray-50 overflow-y-auto p-4 md:p-8 animate-fade-in">
+                  <header class="max-w-4xl mx-auto flex items-center gap-4 mb-10">
+                      <button onclick="window.goBack()" class="text-gray-600 bg-white p-2 rounded-full shadow hover:bg-gray-100 transition">${Icons.Back}</button>
+                      <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2"><span class="text-indigo-600">${Icons.Puzzle}</span> Tria l'assignatura</h2>
+                  </header>
+                  
+                  <div class="max-w-3xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <button onclick="window.startPracticeGame('mates')" class="bg-blue-50 border border-blue-200 p-8 rounded-3xl shadow-lg hover:shadow-xl hover:-translate-y-1 transition duration-300 flex flex-col items-center text-center">
+                          <div class="text-blue-600 text-5xl mb-4 font-black">123</div>
+                          <h3 class="text-xl font-bold text-gray-800 mb-2">Matemàtiques</h3>
+                          <p class="text-gray-500 text-sm">Operacions, càlcul mental, multiplicacions...</p>
+                      </button>
+
+                      <button onclick="window.startPracticeGame('catala')" class="bg-red-50 border border-red-200 p-8 rounded-3xl shadow-lg hover:shadow-xl hover:-translate-y-1 transition duration-300 flex flex-col items-center text-center">
+                          <div class="text-red-600 text-5xl mb-4 font-black">ABC</div>
+                          <h3 class="text-xl font-bold text-gray-800 mb-2">Català</h3>
+                          <p class="text-gray-500 text-sm">Ortografia, femenins, plurals, antònims...</p>
+                      </button>
+
+                      <button onclick="window.startPracticeGame('mixte')" class="bg-purple-50 border border-purple-200 p-8 rounded-3xl shadow-lg hover:shadow-xl hover:-translate-y-1 transition duration-300 flex flex-col items-center text-center">
+                          <div class="text-purple-600 mb-4">${Icons.Puzzle}</div>
+                          <h3 class="text-xl font-bold text-gray-800 mb-2">Mixte</h3>
+                          <p class="text-gray-500 text-sm">Una mica de tot. Preguntes a l'atzar!</p>
+                      </button>
+                  </div>
+              </div>
+          `;
+      }
+
+      // --- ALUMNE: JOC DE PRÀCTICA LOGICA ---
+      window.startPracticeGame = (subject) => {
+        state.practiceGame.active = true;
+        state.practiceGame.subject = subject;
+        state.practiceGame.qNum = 1;
+        state.practiceGame.score = 0;
+        state.view = "student_practice_game";
+        window.generatePracticeQuestion();
+        renderApp();
+      };
+
+      window.generatePracticeQuestion = () => {
+        let type = state.practiceGame.subject;
+        if (type === "mixte") {
+          type = Math.random() > 0.5 ? "mates" : "catala";
+        }
+
+        if (type === "mates") {
+          const op = Math.floor(Math.random() * 4); // 0: +, 1: -, 2: *, 3: /
+          if (op === 0) {
+            let n1 = Math.floor(Math.random() * 100) + 15;
+            let n2 = Math.floor(Math.random() * 100) + 15;
+            state.practiceGame.text = `${n1} + ${n2}`;
+            state.practiceGame.currentAnswer = (n1 + n2).toString();
+          } else if (op === 1) {
+            let n1 = Math.floor(Math.random() * 100) + 50;
+            let n2 = Math.floor(Math.random() * 50) + 1;
+            state.practiceGame.text = `${n1} - ${n2}`;
+            state.practiceGame.currentAnswer = (n1 - n2).toString();
+          } else if (op === 2) {
+            let n1 = Math.floor(Math.random() * 10) + 3;
+            let n2 = Math.floor(Math.random() * 10) + 3;
+            state.practiceGame.text = `${n1} x ${n2}`;
+            state.practiceGame.currentAnswer = (n1 * n2).toString();
+          } else {
+            let n2 = Math.floor(Math.random() * 9) + 2;
+            let res = Math.floor(Math.random() * 10) + 2;
+            let n1 = n2 * res;
+            state.practiceGame.text = `${n1} ÷ ${n2}`;
+            state.practiceGame.currentAnswer = res.toString();
+          }
+        } else {
+          // Base de dades simple de català
+          const catalaDB = [
+            { q: "Plural de 'gos'", a: "gossos" },
+            { q: "Plural de 'llapis'", a: "llapis" },
+            { q: "Plural de 'bosc'", a: "boscos" },
+            { q: "Plural de 'peix'", a: "peixos" },
+            { q: "Femení de 'nen'", a: "nena" },
+            { q: "Femení de 'cavall'", a: "euga" },
+            { q: "Femení de 'metge'", a: "metgessa" },
+            { q: "Femení de 'actor'", a: "actriu" },
+            { q: "Antònim de 'gran'", a: "petit" },
+            { q: "Antònim de 'bo'", a: "dolent" },
+            { q: "Antònim de 'fred'", a: "calent" },
+            { q: "Antònim de 'fàcil'", a: "dificil" }, // Sense accent
+            { q: "Antònim de 'pobre'", a: "ric" },
+            { q: "Lletra que falta (b/v): a_ella (insecte)", a: "b" },
+            { q: "Lletra que falta (b/v): ca_all", a: "v" },
+            { q: "Lletra que falta (b/v): can_i", a: "v" },
+            { q: "Lletra que falta (b/v): _erd (color)", a: "v" },
+            { q: "Lletra que falta (b/v): _arxa (nau)", a: "b" },
+            { q: "Lletra que falta (c/ç): feli_", a: "c" },
+            { q: "Lletra que falta (c/ç): _el (blau)", a: "c" },
+            { q: "Lletra que falta (h): _istòria", a: "h" },
+            { q: "Lletra que falta (h): _ome", a: "h" },
+            { q: "Com s'escriu 10 amb lletres?", a: "deu" },
+            { q: "Com s'escriu 20 amb lletres?", a: "vint" },
+            { q: "Com s'escriu 5 amb lletres?", a: "cinc" },
+          ];
+          const q = catalaDB[Math.floor(Math.random() * catalaDB.length)];
+          state.practiceGame.text = q.q;
+          state.practiceGame.currentAnswer = q.a.toLowerCase();
+        }
+      };
+
+      window.submitPracticeAnswer = async () => {
+        const input = document.getElementById("practice-answer");
+        if (!input || input.value.trim() === "") return;
+
+        // Funció per netejar text (treu espais, majúscules i accents)
+        const normalize = (str) => {
+          return str
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .trim();
+        };
+
+        const userAnswer = normalize(input.value);
+        const correctAnswer = normalize(state.practiceGame.currentAnswer);
+
+        if (userAnswer === correctAnswer) {
+          state.practiceGame.score++;
+        }
+
+        if (state.practiceGame.qNum >= state.practiceGame.maxQ) {
+          state.practiceGame.active = false;
+
+          const subjMap = {
+            mates: "Matemàtiques",
+            catala: "Català",
+            mixte: "Mixte",
+          };
+
+          try {
+            await supabase.from("practice_results").insert([
+              {
+                student_username: state.currentUser.username,
+                subject: subjMap[state.practiceGame.subject],
+                score: state.practiceGame.score,
+                total_questions: state.practiceGame.maxQ,
+              },
+            ]);
+          } catch (e) {
+            console.error("Error guardant resultats", e);
+          }
+
+          alert(
+            `Has acabat! Puntuació: ${state.practiceGame.score} de ${state.practiceGame.maxQ}`
+          );
+          window.navigateTo("student_practice_results");
+        } else {
+          state.practiceGame.qNum++;
+          window.generatePracticeQuestion();
+          renderApp();
+        }
+      };
+
+      function renderStudentPracticeGame(container) {
+        let content = "";
+        if (!state.practiceGame.active) {
+          content = `<div class="text-center p-10"><p>Joc no actiu.</p></div>`;
+        } else {
+          // Determina si ensenya el numèric o text (per ajudar a l'usuari visualment)
+          content = `
+                <div class="max-w-xl mx-auto bg-white p-8 rounded-3xl shadow-2xl mt-10 text-center border border-indigo-50 relative">
+                    
+                    <div class="absolute -top-4 -right-4 bg-indigo-600 text-white font-bold w-12 h-12 rounded-full flex items-center justify-center shadow-lg">
+                        ${state.practiceGame.qNum}/${state.practiceGame.maxQ}
+                    </div>
+
+                    <div class="flex justify-between items-center mb-6 text-sm font-bold text-indigo-800 border-b border-indigo-100 pb-4 mt-2">
+                        <span class="uppercase tracking-wider">${
+                          state.practiceGame.subject === "mixte"
+                            ? "Mixte"
+                            : state.practiceGame.subject === "mates"
+                            ? "Matemàtiques"
+                            : "Català"
+                        }</span>
+                        <span>Punts: <span class="text-green-600 text-lg">${
+                          state.practiceGame.score
+                        }</span></span>
+                    </div>
+                    
+                    <div class="bg-indigo-50 py-12 px-6 rounded-2xl shadow-inner text-center mb-8">
+                        <span class="text-4xl font-black text-indigo-900 tracking-wide">${
+                          state.practiceGame.text
+                        }</span>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <input type="text" autocomplete="off" id="practice-answer" placeholder="Escriu la resposta..." class="w-full p-4 border-2 border-indigo-100 rounded-xl text-center font-bold text-2xl outline-none focus:border-indigo-500 transition-colors bg-gray-50 focus:bg-white">
+                        <p class="text-xs text-gray-400 mt-2">*No et preocupis pels accents, no compten com a falta.</p>
+                    </div>
+                    
+                    <button onclick="window.submitPracticeAnswer()" class="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-indigo-700 transition shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">Següent Pregunta</button>
+                </div>
+              `;
+        }
+
+        container.innerHTML = `
+              <div class="w-full h-full bg-gray-50 overflow-y-auto p-4 md:p-8 animate-fade-in">
+                  <header class="max-w-4xl mx-auto flex items-center gap-4 mb-6">
+                      <button onclick="window.goBack()" class="text-gray-600 bg-white p-2 rounded-full shadow hover:bg-gray-100 transition">${Icons.Back}</button>
+                      <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2"><span class="text-indigo-600">${Icons.Puzzle}</span> Zona d'Entrenament</h2>
+                  </header>
+                  ${content}
+              </div>
+          `;
+
+        setTimeout(() => {
+          const practInput = document.getElementById("practice-answer");
+          if (practInput) {
+            practInput.focus();
+            practInput.addEventListener("keydown", (e) => {
+              if (e.key === "Enter") window.submitPracticeAnswer();
+            });
+          }
+        }, 50);
+      }
+
+      // --- ALUMNE: RESULTATS DE PRÀCTICA ---
+      async function fetchPracticeResults() {
+        state.isLoadingData = true;
+        renderApp();
+
+        try {
+          const { data } = await supabase
+            .from("practice_results")
+            .select("*")
+            .eq("student_username", state.currentUser.username)
+            .order("created_at", { ascending: false });
+
+          state.myPracticeResults = data || [];
+        } catch (e) {
+          console.error("Error carregant pràctica", e);
+        }
+
+        state.isLoadingData = false;
+        renderApp();
+      }
+
+      function renderStudentPracticeResults(container) {
+        if (state.isLoadingData)
+          return (container.innerHTML = `<div class="p-10 text-center">Carregant...</div>`);
+
+        let listHtml =
+          state.myPracticeResults.length === 0
+            ? `<div class="text-center py-10 text-gray-500">Encara no has fet cap exercici de pràctica. Toca a "Fer Pràctica" al menú principal per començar!</div>`
+            : state.myPracticeResults
+                .map((res) => {
+                  const percentage = Math.round(
+                    (res.score / res.total_questions) * 100
+                  );
+                  let colorClass =
+                    percentage >= 80
+                      ? "text-green-600"
+                      : percentage >= 50
+                      ? "text-yellow-600"
+                      : "text-red-600";
+                  let date = new Date(res.created_at).toLocaleDateString(
+                    "ca-ES",
+                    { hour: "2-digit", minute: "2-digit" }
+                  );
+
+                  return `
+                <div class="bg-white border rounded-xl p-5 shadow-sm mb-4 flex justify-between items-center hover:shadow-md transition">
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full font-bold uppercase">${res.subject}</span>
+                            <span class="text-sm text-gray-500">${date}</span>
+                        </div>
+                        <h3 class="text-lg font-bold text-gray-800">Sessió d'entrenament</h3>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-3xl font-bold ${colorClass}">${res.score} / ${res.total_questions}</div>
+                        <div class="text-xs text-gray-500 font-semibold">${percentage}% d'encerts</div>
+                    </div>
+                </div>`;
+                })
+                .join("");
+
+        container.innerHTML = `
+            <div class="w-full max-w-4xl px-4 animate-fade-in py-6">
+                <header class="flex items-center gap-4 mb-6 border-b pb-4 bg-white p-4 rounded-xl shadow-sm">
+                    <button onclick="window.goBack()" class="text-gray-600">${Icons.Back}</button>
+                    <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2"><span class="text-indigo-600">${Icons.Puzzle}</span> Notes de Pràctica</h2>
+                </header>
+                <div class="space-y-4">
+                    ${listHtml}
+                </div>
+            </div>`;
+      }
+
+      // --- VISTA: ADMIN DASHBOARD ---
+      window.createAdminUser = async (e) => {
+        e.preventDefault();
+        const username = document.getElementById("adm-user").value;
+        const name = document.getElementById("adm-name").value;
+        const pass = document.getElementById("adm-pass").value;
+        const role = document.getElementById("adm-role").value;
+        const subject = document.getElementById("adm-subject")?.value || null;
+
+        const newUser = {
+          username,
+          name,
+          password: pass,
+          role,
+          subject,
+          points: role === "Alumne" ? 0 : null,
+          hasUnlockedAudio: false,
+          hasUnlockedCamera: false,
+          hasUnlockedIA: false,
+        };
+
+        const { data, error } = await supabase.from("users").insert([newUser]);
+        if (error) {
+          alert("Error creant usuari. Potser ja existeix.");
+        } else {
+          alert("Usuari creat correctament!");
+          e.target.reset();
+          initApp();
+        }
+      };
+
+      window.openGroupModal = (groupId) => {
+        const group = state.conversations.find((c) => c.id === groupId);
+        if (!group) return;
+        state.selectedGroupForManagement = group;
+        renderAdminGroupModal();
+      };
+
+      window.closeModal = () => {
+        document.getElementById("modal-container").classList.add("hidden");
+        state.selectedGroupForManagement = null;
+      };
+
+      window.kickUserFromGroup = async (username) => {
+        const group = state.selectedGroupForManagement;
+        if (!group) return;
+        if (!confirm(`Expulsar a ${username} del grup?`)) return;
+
+        const newParticipants = group.participants.filter(
+          (p) => p !== username
+        );
+        const sysMsg = {
+          id: `msg-sys-${Date.now()}`,
+          text: `${username} expulsat per l'administrador.`,
+          sender: "system",
+          timestamp: new Date().toISOString(),
+        };
+
+        const { error } = await supabase
+          .from("conversations")
+          .update({
+            participants: newParticipants,
+            messages: [...group.messages, sysMsg],
+          })
+          .eq("id", group.id);
+
+        if (!error) {
+          const idx = state.conversations.findIndex((c) => c.id === group.id);
+          state.conversations[idx].participants = newParticipants;
+          state.conversations[idx].messages.push(sysMsg);
+          renderAdminGroupModal();
+          alert("Usuari expulsat.");
+        } else alert("Error expulsant l'usuari.");
+      };
+
+      window.addUserToGroup = async () => {
+        const group = state.selectedGroupForManagement;
+        const select = document.getElementById("adm-add-user-select");
+        if (!group || !select) return;
+
+        const username = select.value;
+        if (!username) return alert("Selecciona un usuari per afegir.");
+        if (group.participants.includes(username))
+          return alert("Aquest usuari ja és dins del grup.");
+
+        const newParticipants = [...group.participants, username];
+        const sysMsg = {
+          id: `msg-sys-${Date.now()}`,
+          text: `${username} afegit per l'administrador.`,
+          sender: "system",
+          timestamp: new Date().toISOString(),
+        };
+
+        const { error } = await supabase
+          .from("conversations")
+          .update({
+            participants: newParticipants,
+            messages: [...group.messages, sysMsg],
+          })
+          .eq("id", group.id);
+
+        if (!error) {
+          const idx = state.conversations.findIndex((c) => c.id === group.id);
+          state.conversations[idx].participants = newParticipants;
+          state.conversations[idx].messages.push(sysMsg);
+          renderAdminGroupModal();
+          alert("Usuari afegit al grup.");
+        } else alert("Error afegint l'usuari al grup.");
+      };
+
+      function renderAdminGroupModal() {
+        const group = state.selectedGroupForManagement;
+        const modal = document.getElementById("modal-container");
+        const availableUsers = state.users
+          .map((u) => u.username)
+          .filter((username) => !group?.participants.includes(username));
+        if (!group) {
+          modal.classList.add("hidden");
+          return;
+        }
+
+        modal.innerHTML = `
+                <div class="bg-white rounded-lg shadow-xl w-full max-w-lg overflow-hidden animate-fade-in">
+                    <header class="p-4 border-b bg-gray-50 flex justify-between items-center">
+                        <h3 class="font-bold text-lg">Gestionar: ${
+                          group.name
+                        }</h3>
+                        <button onclick="window.closeModal()" class="text-gray-500 hover:text-gray-800 text-xl">&times;</button>
+                    </header>
+                    <div class="p-4 max-h-96 overflow-y-auto">
+                        <div class="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-md">
+                            <p class="text-sm font-medium text-blue-900 mb-2">Afegir participant</p>
+                            <div class="flex gap-2">
+                                <select id="adm-add-user-select" class="flex-1 p-2 border rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <option value="">Selecciona una persona...</option>
+                                    ${availableUsers
+                                      .map(
+                                        (username) =>
+                                          `<option value="${username}">${username}</option>`
+                                      )
+                                      .join("")}
+                                </select>
+                                <button onclick="window.addUserToGroup()" class="bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700">Afegir</button>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-500 mb-2">Participants:</p>
+                        <ul class="space-y-2">
+                            ${group.participants
+                              .map(
+                                (p) => `
+                                <li class="flex justify-between items-center bg-gray-100 p-2 rounded">
+                                    <span>${p} ${
+                                  p === group.creator ? "(Creador)" : ""
+                                }</span>
+                                    ${
+                                      p !== group.creator
+                                        ? `<button onclick="window.kickUserFromGroup('${p}')" class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded hover:bg-red-200">Expulsar</button>`
+                                        : ""
+                                    }
+                                </li>
+                            `
+                              )
+                              .join("")}
+                        </ul>
+                    </div>
+                    <div class="p-4 bg-gray-50 border-t text-right">
+                        <button onclick="window.closeModal()" class="bg-gray-300 px-4 py-2 rounded text-gray-800 hover:bg-gray-400">Tancar</button>
+                    </div>
+                </div>`;
+        modal.classList.remove("hidden");
+      }
+
+      function renderAdminDashboard(container) {
+        const groups = state.conversations.filter((c) => c.isGroup);
+
+        container.innerHTML = `
+                <div class="animate-fade-in w-full h-full bg-gray-100 p-6 overflow-y-auto">
+                    <header class="flex justify-between items-center mb-8">
+                        <h1 class="text-3xl font-bold text-gray-800">Panell d'Administrador</h1>
+                        <div class="flex gap-2">
+                            <button onclick="window.navigateTo('chat')" class="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition">
+                                ${Icons.Chat} Xat
+                            </button>
+                            <button onclick="window.navigateTo('calendar')" class="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition">
+                                ${Icons.Calendar} Calendari
+                            </button>
+                            <button onclick="window.logout()" class="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm font-bold">${
+                              Icons.Logout
+                            } Sortir</button>
+                        </div>
+                    </header>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div class="bg-white p-6 rounded-2xl shadow-lg border-l-4 border-blue-600">
+                            <h2 class="text-xl font-bold mb-4 flex items-center gap-2 text-blue-800">${
+                              Icons.UserPlus
+                            } Crear Nou Usuari</h2>
+                            <form onsubmit="window.createAdminUser(event)" class="space-y-4">
+                                <div><label class="block text-sm font-medium text-gray-700">Nom d'usuari (Login)</label><input id="adm-user" type="text" class="w-full p-2 border rounded" required></div>
+                                <div><label class="block text-sm font-medium text-gray-700">Nom i Cognoms</label><input id="adm-name" type="text" class="w-full p-2 border rounded" required></div>
+                                <div><label class="block text-sm font-medium text-gray-700">Contrasenya</label><input id="adm-pass" type="text" class="w-full p-2 border rounded" required></div>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700">Rol</label>
+                                        <select id="adm-role" class="w-full p-2 border rounded" onchange="document.getElementById('subj-field').classList.toggle('hidden', this.value !== 'Professor')">
+                                            <option value="Alumne">Alumne</option>
+                                            <option value="Professor">Professor</option>
+                                            <option value="Administrador">Administrador</option>
+                                        </select>
+                                    </div>
+                                    <div id="subj-field" class="hidden"><label class="block text-sm font-medium text-gray-700">Assignatura</label><input id="adm-subject" type="text" class="w-full p-2 border rounded" placeholder="Ex: Mates"></div>
+                                </div>
+                                <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 font-bold">Crear Usuari</button>
+                            </form>
+                        </div>
+
+                        <div class="bg-white p-6 rounded-2xl shadow-lg border-l-4 border-purple-600">
+                            <h2 class="text-xl font-bold mb-4 flex items-center gap-2 text-purple-800">${
+                              Icons.Group
+                            } Gestió de Grups de Xat</h2>
+                            ${
+                              groups.length === 0
+                                ? '<p class="text-gray-500">No hi ha grups actius.</p>'
+                                : `
+                                <ul class="space-y-3">
+                                    ${groups
+                                      .map(
+                                        (g) => `
+                                        <li class="flex justify-between items-center p-3 bg-gray-50 rounded border hover:bg-gray-100">
+                                            <div><span class="font-bold block">${g.name}</span><span class="text-xs text-gray-500">${g.participants.length} membres</span></div>
+                                            <button onclick="window.openGroupModal('${g.id}')" class="text-sm bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700">Gestionar</button>
+                                        </li>
+                                    `
+                                      )
+                                      .join("")}
+                                </ul>
+                            `
+                            }
+                        </div>
+                    </div>
+                </div>`;
+      }
+
+      // --- PROFESSOR: GESTIÓ D'EXÀMENS ---
+      async function fetchTeacherExams() {
+        state.isLoadingData = true;
+        renderApp();
+        const { data } = await supabase
+          .from("exams")
+          .select("*")
+          .order("date", { ascending: false });
+        state.exams = data || [];
+        state.isLoadingData = false;
+        state.newExamStudents = state.students.map((s) => s.username);
+        renderApp();
+      }
+
+      async function selectExam(examId) {
+        const exam = state.exams.find((e) => e.id === examId);
+        if (!exam) return;
+        state.selectedExam = exam;
+        const { data } = await supabase
+          .from("grades")
+          .select("*")
+          .eq("exam_id", examId);
+        state.examGrades = data || [];
+        renderApp();
+      }
+
+      window.createExam = async (e) => {
+        e.preventDefault();
+        const title = document.getElementById("ex-title").value;
+        const desc = document.getElementById("ex-desc").value;
+        const date = document.getElementById("ex-date").value;
+        if (!title || !date) return alert("Falten camps");
+        if (state.newExamStudents.length === 0)
+          return alert("Selecciona alumnes");
+
+        const { data, error } = await supabase
+          .from("exams")
+          .insert([
+            {
+              title,
+              description: desc,
+              date,
+              created_by: state.currentUser.username,
+              subject: state.currentUser.subject || "General",
+              assigned_students: state.newExamStudents,
+            },
+          ])
+          .select();
+        if (!error && data) {
+          alert("Examen creat!");
+          state.exams.unshift(data[0]);
+          renderApp();
+        } else alert("Error creant l'examen");
+      };
+
+      window.saveGrade = async (studentUsername, field, value) => {
+        if (!state.selectedExam) return;
+        const examId = state.selectedExam.id;
+        let grade = state.examGrades.find(
+          (g) => g.student_username === studentUsername
+        );
+        let payload = { exam_id: examId, student_username: studentUsername };
+        if (grade) payload = { ...grade, [field]: value };
+        else {
+          payload[field] = value;
+          if (field === "score") payload.feedback = "";
+          if (field === "feedback") payload.score = 0;
+        }
+        const { data, error } = await supabase
+          .from("grades")
+          .upsert(payload)
+          .select();
+        if (!error && data) {
+          const idx = state.examGrades.findIndex(
+            (g) => g.student_username === studentUsername
+          );
+          if (idx >= 0) state.examGrades[idx] = data[0];
+          else state.examGrades.push(data[0]);
+        }
+      };
+
+      window.toggleExamStudent = (username) => {
+        if (state.newExamStudents.includes(username))
+          state.newExamStudents = state.newExamStudents.filter(
+            (u) => u !== username
+          );
+        else state.newExamStudents.push(username);
+      };
+
+      function renderExamManager(container) {
+        if (state.isLoadingData)
+          return (container.innerHTML = `<div class="p-10 text-center">Carregant...</div>`);
+        const studentsToGrade = state.selectedExam
+          ? state.students.filter(
+              (s) =>
+                !state.selectedExam.assigned_students ||
+                state.selectedExam.assigned_students.includes(s.username)
+            )
+          : [];
+        const gradingHtml = state.selectedExam
+          ? `
+                <h3 class="text-xl font-bold mb-4 text-blue-800 border-b pb-2">Avaluant: ${
+                  state.selectedExam.title
+                }</h3>
+                <div class="space-y-4">
+                    ${studentsToGrade
+                      .map((s) => {
+                        const grade = state.examGrades.find(
+                          (g) => g.student_username === s.username
+                        );
+                        const score = grade ? grade.score : "";
+                        const feedback = grade ? grade.feedback : "";
+                        return `
+                        <div class="bg-gray-50 p-4 rounded-lg shadow-sm border">
+                            <div class="flex justify-between items-center mb-2"><span class="font-bold text-gray-800">${s.name}</span></div>
+                            <div class="flex gap-4">
+                                <div class="w-24"><label class="text-xs text-gray-500 block mb-1">Nota</label><input type="number" max="10" value="${score}" onchange="window.saveGrade('${s.username}', 'score', this.value)" class="w-full p-2 border rounded text-center"></div>
+                                <div class="flex-grow"><label class="text-xs text-gray-500 block mb-1">Feedback</label><input type="text" value="${feedback}" onchange="window.saveGrade('${s.username}', 'feedback', this.value)" class="w-full p-2 border rounded" placeholder="Comentari..."></div>
+                            </div>
+                        </div>`;
+                      })
+                      .join("")}
+                </div>`
+          : `<div class="h-full flex items-center justify-center text-gray-400">Selecciona un examen per avaluar</div>`;
+
+        container.innerHTML = `
+                <div class="flex flex-col h-full bg-white">
+                    <header class="flex items-center gap-4 p-4 border-b">
+                        <button onclick="window.goBack()" class="text-gray-600">${
+                          Icons.Back
+                        }</button>
+                        <h2 class="text-2xl font-bold text-blue-700 flex items-center gap-2">${
+                          Icons.Academic
+                        } Gestió d'Exàmens</h2>
+                    </header>
+                    <div class="flex flex-grow overflow-hidden">
+                        <div class="w-1/3 border-r p-4 overflow-y-auto bg-gray-50">
+                            <div class="mb-6 bg-white p-4 rounded-xl border shadow-sm">
+                                <h3 class="font-bold mb-2">Nou Examen</h3>
+                                <form onsubmit="window.createExam(event)" class="space-y-3">
+                                    <input id="ex-title" type="text" placeholder="Títol" class="w-full p-2 border rounded" required>
+                                    <input id="ex-desc" type="text" placeholder="Descripció" class="w-full p-2 border rounded">
+                                    <input id="ex-date" type="date" class="w-full p-2 border rounded" required>
+                                    <div class="max-h-32 overflow-y-auto border rounded p-2 bg-gray-50"><p class="text-xs font-bold mb-1">Assignar a:</p>${state.students
+                                      .map(
+                                        (s) =>
+                                          `<div class="flex items-center gap-2"><input type="checkbox" checked onchange="window.toggleExamStudent('${s.username}')"><span class="text-sm">${s.name}</span></div>`
+                                      )
+                                      .join("")}</div>
+                                    <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Crear</button>
+                                </form>
+                            </div>
+                            <h3 class="font-bold mb-2">Històric</h3>
+                            <ul class="space-y-2">${state.exams
+                              .map(
+                                (e) =>
+                                  `<li onclick="window.selectExam(${
+                                    e.id
+                                  })" class="p-3 bg-white rounded border cursor-pointer hover:bg-blue-50 ${
+                                    state.selectedExam?.id === e.id
+                                      ? "border-blue-500 ring-1 ring-blue-500"
+                                      : ""
+                                  }"><div class="font-bold text-sm">${
+                                    e.title
+                                  }</div><div class="text-xs text-gray-500">${
+                                    e.date
+                                  }</div></li>`
+                              )
+                              .join("")}</ul>
+                        </div>
+                        <div class="w-2/3 p-6 overflow-y-auto">${gradingHtml}</div>
+                    </div>
+                </div>`;
+        window.selectExam = selectExam;
+      }
+
+      // --- PROFESSOR: GESTIÓ DE DEURES ---
+      async function fetchTeacherHomework() {
+        state.isLoadingData = true;
+        renderApp();
+        const { data } = await supabase
+          .from("homeworks")
+          .select("*")
+          .order("due_date", { ascending: true });
+        state.teacherHomeworks = data || [];
+        state.newHomeworkStudents = state.students.map((s) => s.username);
+        state.isLoadingData = false;
+        renderApp();
+      }
+
+      window.createHomework = async (e) => {
+        e.preventDefault();
+        const title = document.getElementById("hw-title").value;
+        const desc = document.getElementById("hw-desc").value;
+        const date = document.getElementById("hw-date").value;
+        if (!title || !date) return alert("Falten camps");
+        if (state.newHomeworkStudents.length === 0)
+          return alert("Selecciona alumnes");
+        const { data, error } = await supabase
+          .from("homeworks")
+          .insert([
+            {
+              title,
+              description: desc,
+              due_date: date,
+              created_by: state.currentUser.username,
+              subject: state.currentUser.subject || "General",
+              assigned_students: state.newHomeworkStudents,
+              completed_by: [],
+            },
+          ])
+          .select();
+        if (!error && data) {
+          alert("Deures creats!");
+          state.teacherHomeworks.push(data[0]);
+          renderApp();
+        } else alert("Error creant deures");
+      };
+
+      window.deleteHomework = async (id) => {
+        if (!confirm("Eliminar aquests deures?")) return;
+        const { error } = await supabase
+          .from("homeworks")
+          .delete()
+          .eq("id", id);
+        if (!error) {
+          state.teacherHomeworks = state.teacherHomeworks.filter(
+            (h) => h.id !== id
+          );
+          renderApp();
+        } else alert("Error eliminant");
+      };
+
+      window.toggleHwStudent = (username) => {
+        if (state.newHomeworkStudents.includes(username))
+          state.newHomeworkStudents = state.newHomeworkStudents.filter(
+            (u) => u !== username
+          );
+        else state.newHomeworkStudents.push(username);
+      };
+
+      function renderHomeworkManager(container) {
+        if (state.isLoadingData)
+          return (container.innerHTML = `<div class="p-10 text-center">Carregant...</div>`);
+        const listHtml =
+          state.teacherHomeworks.length === 0
+            ? '<p class="text-gray-500">No hi ha deures.</p>'
+            : state.teacherHomeworks
+                .map((hw) => {
+                  const assignedCount = hw.assigned_students?.length || 0;
+                  const completedCount = hw.completed_by?.length || 0;
+                  const percent =
+                    assignedCount > 0
+                      ? Math.round((completedCount / assignedCount) * 100)
+                      : 0;
+                  return `<li class="bg-white border rounded-lg p-4 shadow-sm relative"><div class="flex justify-between items-start"><div><h4 class="font-bold text-gray-800">${hw.title}</h4><p class="text-gray-600 text-sm">${hw.description}</p></div><button onclick="window.deleteHomework(${hw.id})" class="text-gray-400 hover:text-red-500">${Icons.Trash}</button></div><div class="mt-3 flex items-center justify-between text-xs text-gray-500"><span>📅 ${hw.due_date}</span><span>👥 ${assignedCount} alumnes</span></div><div class="mt-2 flex items-center gap-2"><div class="w-full bg-gray-200 rounded-full h-2"><div class="bg-green-600 h-2 rounded-full" style="width: ${percent}%"></div></div><span class="text-xs font-bold text-green-700">${completedCount}/${assignedCount}</span></div></li>`;
+                })
+                .join("");
+
+        container.innerHTML = `
+                <div class="flex flex-col h-full bg-white">
+                    <header class="flex items-center gap-4 p-4 border-b">
+                        <button onclick="window.goBack()" class="text-gray-600">${
+                          Icons.Back
+                        }</button>
+                        <h2 class="text-2xl font-bold text-green-700 flex items-center gap-2">${
+                          Icons.Book
+                        } Gestió de Deures</h2>
+                    </header>
+                    <div class="flex flex-grow overflow-hidden">
+                        <div class="w-1/3 border-r p-4 overflow-y-auto bg-green-50">
+                            <div class="bg-white p-4 rounded-xl border border-green-200 shadow-sm">
+                                <h3 class="font-bold mb-2 text-green-800">Assignar Nous Deures</h3>
+                                <form onsubmit="window.createHomework(event)" class="space-y-3">
+                                    <input id="hw-title" type="text" placeholder="Títol" class="w-full p-2 border rounded" required>
+                                    <textarea id="hw-desc" placeholder="Descripció" class="w-full p-2 border rounded" rows="3"></textarea>
+                                    <input id="hw-date" type="date" class="w-full p-2 border rounded" required>
+                                    <div class="max-h-40 overflow-y-auto border rounded p-2 bg-gray-50"><p class="text-xs font-bold mb-1">Assignar a:</p>${state.students
+                                      .map(
+                                        (s) =>
+                                          `<div class="flex items-center gap-2"><input type="checkbox" checked onchange="window.toggleHwStudent('${s.username}')"><span class="text-sm">${s.name}</span></div>`
+                                      )
+                                      .join("")}</div>
+                                    <button type="submit" class="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700">Assignar</button>
+                                </form>
+                            </div>
+                        </div>
+                        <div class="w-2/3 p-6 overflow-y-auto bg-gray-50"><h3 class="font-bold text-lg mb-4 text-gray-700">Deures Assignats</h3><ul class="grid gap-4 grid-cols-1 lg:grid-cols-2">${listHtml}</ul></div>
+                    </div>
+                </div>`;
+      }
+
+      // --- ALUMNE: NOTES ---
+      async function fetchStudentGrades() {
+        state.isLoadingData = true;
+        renderApp();
+        const { data: gradesData } = await supabase
+          .from("grades")
+          .select("*")
+          .eq("student_username", state.currentUser.username);
+        if (gradesData && gradesData.length > 0) {
+          const examIds = gradesData.map((g) => g.exam_id);
+          const { data: examsData } = await supabase
+            .from("exams")
+            .select("*")
+            .in("id", examIds);
+          state.myGrades = gradesData.map((grade) => {
+            const exam = examsData.find((e) => e.id === grade.exam_id) || {
+              title: "Examen",
+              subject: "General",
+              date: "-",
+            };
+            return { ...grade, exam };
+          });
+        } else state.myGrades = [];
+        state.isLoadingData = false;
+        renderApp();
+      }
+
+      function renderStudentGrades(container) {
+        const getColor = (s) =>
+          s >= 9
+            ? "text-green-600"
+            : s >= 7
+            ? "text-blue-600"
+            : s >= 5
+            ? "text-yellow-600"
+            : "text-red-600";
+        const subjects = ["Matemàtiques", "Medi", "Català"];
+        const stats = { Matemàtiques: [], Medi: [], Català: [], General: [] };
+
+        state.myGrades.forEach((g) => {
+          let sub = g.exam.subject;
+          if (sub) {
+            if (sub.includes("Mates") || sub.includes("Matemàtiques"))
+              sub = "Matemàtiques";
+            else if (sub.toLowerCase().includes("medi")) sub = "Medi";
+            else if (
+              sub.toLowerCase().includes("catala") ||
+              sub.includes("Català")
+            )
+              sub = "Català";
+          }
+          if (subjects.includes(sub)) stats[sub].push(g.score);
+          stats["General"].push(g.score);
+        });
+
+        const getAvg = (arr) =>
+          arr.length
+            ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1)
+            : "-";
+
+        const statsHtml = `
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-blue-100 p-4 rounded-xl text-center border border-blue-200">
+                        <h4 class="text-sm font-bold text-blue-800 uppercase">General</h4>
+                        <span class="text-3xl font-bold text-blue-900">${getAvg(
+                          stats["General"]
+                        )}</span>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl text-center border border-gray-200 shadow-sm"><h4 class="text-xs text-gray-500 uppercase">Mates</h4><span class="text-xl font-bold ${getColor(
+                      parseFloat(getAvg(stats["Matemàtiques"]))
+                    )}">${getAvg(stats["Matemàtiques"])}</span></div>
+                    <div class="bg-white p-4 rounded-xl text-center border border-gray-200 shadow-sm"><h4 class="text-xs text-gray-500 uppercase">Medi</h4><span class="text-xl font-bold ${getColor(
+                      parseFloat(getAvg(stats["Medi"]))
+                    )}">${getAvg(stats["Medi"])}</span></div>
+                    <div class="bg-white p-4 rounded-xl text-center border border-gray-200 shadow-sm"><h4 class="text-xs text-gray-500 uppercase">Català</h4><span class="text-xl font-bold ${getColor(
+                      parseFloat(getAvg(stats["Català"]))
+                    )}">${getAvg(stats["Català"])}</span></div>
+                </div>`;
+
+        let listHtml =
+          state.myGrades.length === 0
+            ? `<div class="text-center py-10 text-gray-500">No tens notes.</div>`
+            : state.myGrades
+                .map(
+                  (g) => `
+                    <div class="bg-white border rounded-xl p-5 shadow-sm mb-4 flex justify-between items-center hover:shadow-md transition">
+                        <div>
+                            <div class="flex items-center gap-2 mb-1"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-bold uppercase">${
+                              g.exam.subject || "General"
+                            }</span><span class="text-sm text-gray-500">${
+                    g.exam.date
+                  }</span></div>
+                            <h3 class="text-lg font-bold text-gray-800">${
+                              g.exam.title
+                            }</h3>
+                            ${
+                              g.feedback
+                                ? `<div class="mt-2 text-sm text-gray-600 bg-gray-50 p-2 rounded italic">"${g.feedback}"</div>`
+                                : ""
+                            }
+                        </div>
+                        <div class="text-3xl font-bold ${getColor(g.score)}">${
+                    g.score
+                  }</div>
+                    </div>`
+                )
+                .join("");
+
+        container.innerHTML = `
+                <div class="w-full max-w-4xl px-4 animate-fade-in py-6">
+                    <header class="flex items-center gap-4 mb-6 border-b pb-4 bg-white p-4 rounded-xl shadow-sm">
+                        <button onclick="window.goBack()" class="text-gray-600">${Icons.Back}</button>
+                        <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2"><span class="text-yellow-600">${Icons.Academic}</span> Les Meves Notes</h2>
+                    </header>
+                    ${statsHtml}
+                    <div class="space-y-4"><h3 class="font-bold text-gray-700 ml-1">Històric d'Exàmens</h3>${listHtml}</div>
+                </div>`;
+      }
+
+      // --- ALUMNE: DEURES ---
+      async function fetchStudentHomework() {
+        state.isLoadingData = true;
+        renderApp();
+        const { data } = await supabase
+          .from("homeworks")
+          .select("*")
+          .order("due_date", { ascending: true });
+        if (data)
+          state.myHomework = data.filter(
+            (hw) =>
+              hw.assigned_students &&
+              hw.assigned_students.includes(state.currentUser.username)
+          );
+        state.isLoadingData = false;
+        renderApp();
+      }
+      window.toggleHomeworkCompletion = async (id) => {
+        const hwIndex = state.myHomework.findIndex((h) => h.id == id);
+        if (hwIndex === -1) return;
+        const hw = state.myHomework[hwIndex];
+        const username = state.currentUser.username;
+        let completedBy = hw.completed_by || [];
+        if (completedBy.includes(username))
+          completedBy = completedBy.filter((u) => u !== username);
+        else completedBy.push(username);
+        state.myHomework[hwIndex].completed_by = completedBy;
+        renderApp();
+        await supabase
+          .from("homeworks")
+          .update({ completed_by: completedBy })
+          .eq("id", id);
+      };
+      function renderStudentHomework(container) {
+        let listHtml =
+          state.myHomework.length === 0
+            ? `<div class="text-center py-10 text-gray-500">No tens deures pendents! 🎉</div>`
+            : state.myHomework
+                .map((hw) => {
+                  const isCompleted =
+                    hw.completed_by &&
+                    hw.completed_by.includes(state.currentUser.username);
+                  const isLate =
+                    new Date(hw.due_date) < new Date().setHours(0, 0, 0, 0);
+                  let cardClass = isCompleted
+                    ? "bg-green-50 border-green-200"
+                    : isLate
+                    ? "bg-red-50 border-red-200"
+                    : "bg-white border-gray-200";
+                  return `<div class="border rounded-xl p-5 shadow-sm flex flex-col sm:flex-row gap-4 mb-4 ${cardClass}"><div class="flex-grow"><div class="flex items-center gap-2 mb-1"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-bold uppercase">${
+                    hw.subject || "General"
+                  }</span>${
+                    isCompleted
+                      ? '<span class="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">Fet</span>'
+                      : ""
+                  }</div><h3 class="text-lg font-bold text-gray-800 ${
+                    isCompleted ? "line-through text-gray-500" : ""
+                  }">${hw.title}</h3><p class="text-gray-600 mt-2 text-sm">${
+                    hw.description || ""
+                  }</p></div><div class="flex flex-col justify-between items-end min-w-[140px]"><div class="flex items-center gap-1 text-lg font-bold ${
+                    !isCompleted && isLate ? "text-red-600" : "text-gray-800"
+                  }">${Icons.Clock} ${
+                    hw.due_date
+                  }</div><button onclick="window.toggleHomeworkCompletion(${
+                    hw.id
+                  })" class="w-full py-2 px-3 rounded-lg font-semibold text-sm transition-colors ${
+                    isCompleted
+                      ? "bg-white border border-green-600 text-green-700"
+                      : "bg-green-600 text-white"
+                  }">${
+                    isCompleted ? "Desmarcar" : "Marcar Fet"
+                  }</button></div></div>`;
+                })
+                .join("");
+        container.innerHTML = `<div class="w-full max-w-4xl px-4 animate-fade-in py-6"><header class="flex items-center gap-4 mb-6 border-b pb-4 bg-white p-4 rounded-xl shadow-sm"><button onclick="window.goBack()" class="text-gray-600">${Icons.Back}</button><h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2"><span class="text-green-600">${Icons.Book}</span> Els Meus Deures</h2></header><div>${listHtml}</div></div>`;
+      }
+
+      // --- CALENDARI (ANIVERSARIS I ESDEVENIMENTS) ---
+      async function fetchCalendarData() {
+        state.isLoadingData = true;
+        renderApp();
+        try {
+          const { data: bData } = await supabase.from("birthdays").select("*");
+          state.birthdays = bData || [];
+        } catch (e) {
+          console.error("Error carregant aniversaris:", e);
+        }
+        try {
+          const { data: eData } = await supabase.from("events").select("*");
+          state.events = eData || [];
+        } catch (e) {
+          console.error("Error carregant esdeveniments:", e);
+        }
+        state.isLoadingData = false;
+        renderApp();
+      }
+
+      window.changeCalendarMonth = (offset) => {
+        state.currentCalendarMonth += offset;
+        if (state.currentCalendarMonth > 11) {
+          state.currentCalendarMonth = 0;
+          state.currentCalendarYear++;
+        } else if (state.currentCalendarMonth < 0) {
+          state.currentCalendarMonth = 11;
+          state.currentCalendarYear--;
+        }
+        renderApp();
+      };
+
+      window.saveCalendarItem = async (e) => {
+        e.preventDefault();
+        const typeSelect = document.getElementById("ci-type");
+        const type = typeSelect ? typeSelect.value : "birthday";
+        const name = document.getElementById("ci-name").value;
+        const day = document.getElementById("ci-day").value;
+        const month = document.getElementById("ci-month").value;
+        const yearInput = document.getElementById("ci-year");
+        const year = yearInput && type === "event" ? yearInput.value : state.currentCalendarYear;
+        
+        if (!name || !day || !month) return alert("Omple tots els camps");
+
+        const m = String(parseInt(month) + 1).padStart(2, '0');
+        const d = String(day).padStart(2, '0');
+        const date = type === "event" ? `${year}-${m}-${d}` : `2000-${m}-${d}`;
+
+        const newItem = {
+          name,
+          date,
+          created_by: state.currentUser.username,
+        };
+        
+        const table = type === "event" ? "events" : "birthdays";
+
+        const { data, error } = await supabase
+          .from(table)
+          .insert([newItem])
+          .select();
+
+        if (!error && data) {
+          if (type === "event") state.events.push(data[0]);
+          else state.birthdays.push(data[0]);
+          window.closeModal();
+          renderApp();
+          alert(type === "event" ? "Esdeveniment afegit correctament!" : "Aniversari afegit correctament!");
+        } else {
+          console.error("Supabase Error:", error);
+          alert(`Error de la base de dades: ${error?.message || "Desconegut"}. Has creat la taula '${table}' a Supabase?`);
+        }
+      };
+
+      window.openAddCalendarItemModal = () => {
+        const canAddEvent = state.currentUser.role === 'Professor' || state.currentUser.role === 'Administrador';
+        
+        const typeSelectorHTML = canAddEvent ? `
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Tipus d'entrada</label>
+                <select id="ci-type" class="w-full p-2 border rounded focus:ring-2 focus:ring-yellow-500 outline-none" onchange="document.getElementById('year-container').classList.toggle('hidden', this.value === 'birthday')">
+                    <option value="birthday">Aniversari</option>
+                    <option value="event">Esdeveniment</option>
+                </select>
+            </div>
+        ` : '';
+
+        const yearInputHTML = canAddEvent ? `
+            <div id="year-container" class="w-1/3 hidden">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Any</label>
+                <input id="ci-year" type="number" value="${state.currentCalendarYear}" class="w-full p-2 border rounded focus:ring-2 focus:ring-yellow-500 outline-none">
+            </div>
+        ` : '';
+
+        const modal = document.getElementById("modal-container");
+        modal.innerHTML = `
+          <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in">
+              <header class="p-4 border-b flex justify-between items-center bg-gray-50">
+                  <h3 class="font-bold text-lg text-gray-800">Afegir al Calendari</h3>
+                  <button onclick="window.closeModal()" class="text-gray-500 text-xl">&times;</button>
+              </header>
+              <form onsubmit="window.saveCalendarItem(event)" class="p-6 space-y-4">
+                  ${typeSelectorHTML}
+                  <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-1">Títol o Nom</label>
+                      <input id="ci-name" type="text" class="w-full p-2 border rounded focus:ring-2 focus:ring-yellow-500 outline-none" required>
+                  </div>
+                  <div class="flex gap-4">
+                      <div class="w-1/3">
+                          <label class="block text-sm font-medium text-gray-700 mb-1">Dia</label>
+                          <input id="ci-day" type="number" min="1" max="31" class="w-full p-2 border rounded focus:ring-2 focus:ring-yellow-500 outline-none" required>
+                      </div>
+                      <div class="${canAddEvent ? 'w-1/3' : 'w-2/3'}">
+                          <label class="block text-sm font-medium text-gray-700 mb-1">Mes</label>
+                          <select id="ci-month" class="w-full p-2 border rounded focus:ring-2 focus:ring-yellow-500 outline-none" required>
+                              <option value="0">Gener</option>
+                              <option value="1">Febrer</option>
+                              <option value="2">Març</option>
+                              <option value="3">Abril</option>
+                              <option value="4">Maig</option>
+                              <option value="5">Juny</option>
+                              <option value="6">Juliol</option>
+                              <option value="7">Agost</option>
+                              <option value="8">Setembre</option>
+                              <option value="9">Octubre</option>
+                              <option value="10">Novembre</option>
+                              <option value="11">Desembre</option>
+                          </select>
+                      </div>
+                      ${yearInputHTML}
+                  </div>
+                  <button type="submit" class="w-full bg-yellow-500 text-white py-2 rounded-lg font-bold hover:bg-yellow-600 transition">Guardar</button>
+              </form>
+          </div>
+        `;
+        modal.classList.remove("hidden");
+      };
+
+      function renderCalendar(container) {
+        if (state.isLoadingData)
+          return (container.innerHTML =
+            '<div class="p-10 text-center">Carregant...</div>');
+
+        const daysInMonth = (month, year) =>
+          new Date(year, month + 1, 0).getDate();
+        const firstDayOfMonth = (month, year) => new Date(year, month, 1).getDay(); // 0 is Sunday
+
+        const mName = [
+          "Gener",
+          "Febrer",
+          "Març",
+          "Abril",
+          "Maig",
+          "Juny",
+          "Juliol",
+          "Agost",
+          "Setembre",
+          "Octubre",
+          "Novembre",
+          "Desembre",
+        ];
+        const dNames = ["Dl", "Dt", "Dc", "Dj", "Dv", "Ds", "Dg"];
+
+        // Ajustem per començar en Dilluns (0: Sun -> 6, 1: Mon -> 0, etc)
+        let firstDay = firstDayOfMonth(
+          state.currentCalendarMonth,
+          state.currentCalendarYear
+        );
+        firstDay = firstDay === 0 ? 6 : firstDay - 1;
+
+        let calendarHtml = "";
+
+        // Espais buits inici
+        for (let i = 0; i < firstDay; i++) {
+          calendarHtml +=
+            '<div class="h-24 md:h-32 bg-gray-50/50 border border-gray-100"></div>';
+        }
+
+        const numDays = daysInMonth(
+          state.currentCalendarMonth,
+          state.currentCalendarYear
+        );
+        for (let d = 1; d <= numDays; d++) {
+          const dayBirthdays = state.birthdays.filter((b) => {
+            const bDate = new Date(b.date);
+            return bDate.getMonth() === state.currentCalendarMonth && bDate.getDate() === d;
+          });
+
+          const dayEvents = state.events.filter((e) => {
+            const eDate = new Date(e.date);
+            return eDate.getFullYear() === state.currentCalendarYear && eDate.getMonth() === state.currentCalendarMonth && eDate.getDate() === d;
+          });
+
+          const isToday =
+            new Date().toDateString() ===
+            new Date(
+              state.currentCalendarYear,
+              state.currentCalendarMonth,
+              d
+            ).toDateString();
+
+          calendarHtml += `
+            <div class="h-24 md:h-32 border border-gray-100 p-1 md:p-2 bg-white flex flex-col ${
+              isToday ? "ring-2 ring-yellow-400 z-10" : ""
+            }">
+              <span class="text-xs font-bold ${
+                isToday ? "text-yellow-600" : "text-gray-400"
+              }">${d}</span>
+              <div class="flex-grow overflow-y-auto space-y-1 mt-1 custom-scrollbar w-full relative">
+                ${dayEvents
+                  .map(
+                    (ev) =>
+                      `<div class="bg-blue-100 text-blue-800 text-[10px] md:text-xs p-1 rounded border border-blue-200 flex items-center gap-1"><span class="w-3">${Icons.Flag || '🚩'}</span> <span class="truncate block w-full">${ev.name}</span></div>`
+                  )
+                  .join("")}
+                ${dayBirthdays
+                  .map(
+                    (b) =>
+                      `<div class="bg-yellow-100 text-yellow-800 text-[10px] md:text-xs p-1 rounded border border-yellow-200 flex items-center gap-1">🎂 <span class="truncate block w-full">${b.name}</span></div>`
+                  )
+                  .join("")}
+              </div>
+            </div>
+          `;
+        }
+
+        const canAddEvent = state.currentUser.role === 'Professor' || state.currentUser.role === 'Administrador';
+
+        container.innerHTML = `
+          <div class="w-full h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden">
+            <header class="p-4 bg-white shadow-sm flex justify-between items-center shrink-0">
+               <div class="flex items-center gap-4">
+                  <button onclick="window.goBack()" class="text-gray-600">${
+                    Icons.Back
+                  }</button>
+                  <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <span class="text-yellow-500">${Icons.Calendar}</span> 
+                    Calendari d'Esdeveniments
+                  </h2>
+               </div>
+               <div class="flex items-center gap-3">
+                  ${canAddEvent ? `
+                  <button onclick="window.openAddCalendarItemModal()" class="bg-yellow-500 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-yellow-600 transition">
+                    Afegir
+                  </button>
+                  ` : ''}
+                  <div class="flex items-center bg-gray-100 rounded-lg p-1">
+                    <button onclick="window.changeCalendarMonth(-1)" class="p-1 hover:bg-white rounded transition">${
+                      Icons.Back
+                    }</button>
+                    <span class="px-4 font-bold text-gray-700 min-w-[140px] text-center">${
+                      mName[state.currentCalendarMonth]
+                    } ${state.currentCalendarYear}</span>
+                    <button onclick="window.changeCalendarMonth(1)" class="p-1 hover:bg-white rounded transition rotate-180">${
+                      Icons.Back
+                    }</button>
+                  </div>
+               </div>
+            </header>
+            
+            <div class="flex-grow p-4 md:p-6 overflow-hidden">
+              <div class="h-full bg-white rounded-2xl shadow-xl border border-gray-200 flex flex-col overflow-hidden">
+                <div class="grid grid-cols-7 bg-gray-50 border-b shrink-0">
+                  ${dNames
+                    .map(
+                      (name) =>
+                        `<div class="p-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">${name}</div>`
+                    )
+                    .join("")}
+                </div>
+                <div class="grid grid-cols-7 flex-grow overflow-y-auto custom-scrollbar">
+                  ${calendarHtml}
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // --- XAT (Tornat a la normalitat) ---
+      function renderChat(container) {
+        const user = state.currentUser;
+        const myConvs = state.conversations.filter((c) =>
+          c.participants.includes(user.username)
+        );
+        const activeChat = state.currentChatId
+          ? myConvs.find((c) => c.id === state.currentChatId)
+          : null;
+
+        const chatListHtml = myConvs
+          .map((c) => {
+            const name = c.isGroup
+              ? c.name
+              : c.participants.find((p) => p !== user.username);
+            const isActive =
+              c.id === state.currentChatId
+                ? "bg-blue-100"
+                : "hover:bg-gray-100";
+            return `<div class="p-4 border-b cursor-pointer transition ${isActive}" onclick="window.selectChat('${c.id}')"><h4 class="font-bold text-gray-800">${name}</h4></div>`;
+          })
+          .join("");
+
+        let messagesHtml = activeChat
+          ? activeChat.messages
+              .map((msg) => {
+                const isMe = msg.sender === user.username;
+                const isSys = msg.sender === "system";
+                if (isSys)
+                  return `<div class="text-center my-2"><span class="text-xs bg-gray-200 rounded-full px-2 py-1">${msg.text}</span></div>`;
+                
+                const deleteBtn = isMe ? `<button onclick="window.deleteMessage('${activeChat.id}', '${msg.id}')" class="text-red-400 hover:text-red-700 ml-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" title="Esborrar missatge"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg></button>` : "";
+                
+                return `<div class="flex flex-col mb-2 ${
+                  isMe ? "items-end" : "items-start"
+                }"><div class="message-bubble group ${
+                  isMe ? "message-sent" : "message-received"
+                } bg-white"><div class="flex items-start justify-between"><div><p class="text-xs font-bold text-blue-600 mb-1">${
+                  msg.sender !== user.username && activeChat.isGroup
+                    ? msg.sender
+                    : ""
+                }</p><p>${msg.text}</p></div>${deleteBtn}</div></div></div>`;
+              })
+              .join("")
+          : '<div class="h-full flex items-center justify-center text-gray-500">Selecciona una conversa</div>';
+
+        container.innerHTML = `
+                <div class="flex h-screen w-full bg-white overflow-hidden animate-fade-in">
+                    <div class="w-1/3 border-r bg-gray-50 flex flex-col">
+                        <div class="p-4 border-b bg-white flex justify-between items-center">
+                            <button onclick="window.goBack()" class="text-gray-600">${
+                              Icons.Back
+                            }</button>
+                            <h2 class="font-bold">Xats</h2>
+                            <button onclick="window.openNewChatModal()" class="text-blue-600 text-sm font-bold">+ Nou</button>
+                        </div>
+                        <div class="overflow-y-auto flex-grow">${chatListHtml}</div>
+                    </div>
+                    <div class="w-2/3 flex flex-col bg-gray-200" id="chat-messages-container">
+                        <div id="messages-list" class="flex-grow p-4 overflow-y-auto custom-scrollbar flex flex-col">${messagesHtml}</div>
+                        ${
+                          activeChat
+                            ? `<div class="p-3 bg-white border-t flex gap-2 items-center"><input type="text" id="msg-input" placeholder="Missatge..." class="flex-grow border rounded-full px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500"><button id="send-btn" class="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700">${Icons.Send}</button></div>`
+                            : ""
+                        }
+                    </div>
+                </div>`;
+
+        if (activeChat) {
+          const sendBtn = document.getElementById("send-btn");
+          const msgInput = document.getElementById("msg-input");
+          const send = async () => {
+            if (!msgInput.value.trim()) return;
+            const newMsg = {
+              id: Date.now().toString(),
+              text: msgInput.value,
+              sender: user.username,
+              timestamp: new Date().toISOString(),
+            };
+            const idx = state.conversations.findIndex(
+              (c) => c.id === state.currentChatId
+            );
+            state.conversations[idx].messages.push(newMsg);
+            msgInput.value = "";
+            renderApp();
+            await supabase
+              .from("conversations")
+              .upsert(state.conversations[idx]);
+          };
+          sendBtn.onclick = send;
+          msgInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") send();
+          });
+          const list = document.getElementById("messages-list");
+          list.scrollTop = list.scrollHeight;
+        }
+      }
+
+      // --- NEW CHAT MODAL LOGIC ---
+      window.openNewChatModal = () => {
+        state.newChatSelectedUsers = [];
+        state.newChatSearch = "";
+        renderNewChatModal();
+      };
+      window.toggleNewChatUser = (username) => {
+        if (state.newChatSelectedUsers.includes(username))
+          state.newChatSelectedUsers = state.newChatSelectedUsers.filter(
+            (u) => u !== username
+          );
+        else state.newChatSelectedUsers.push(username);
+        renderNewChatModal();
+      };
+      window.searchUsers = (val) => {
+        state.newChatSearch = val.toLowerCase();
+        renderNewChatModal();
+      };
+      window.confirmCreateChat = async () => {
+        if (state.newChatSelectedUsers.length === 0)
+          return alert("Selecciona almenys un usuari.");
+        const isGroup = state.newChatSelectedUsers.length > 1;
+        let groupName = null;
+        if (isGroup) {
+          groupName = document.getElementById("group-name-input").value;
+          if (!groupName) return alert("Posa un nom al grup.");
+        }
+        const participants = [
+          state.currentUser.username,
+          ...state.newChatSelectedUsers,
+        ];
+        const newConv = {
+          id: `conv-${Date.now()}`,
+          participants,
+          messages: [],
+          isGroup,
+          name: groupName,
+          creator: state.currentUser.username,
+        };
+        state.conversations.push(newConv);
+        state.currentChatId = newConv.id;
+        await supabase.from("conversations").insert([newConv]);
+        window.closeModal();
+        renderApp();
+      };
+
+      function renderNewChatModal() {
+        const modal = document.getElementById("modal-container");
+        const filteredUsers = state.users.filter(
+          (u) =>
+            u.username !== state.currentUser.username &&
+            u.name.toLowerCase().includes(state.newChatSearch)
+        );
+        const isGroup = state.newChatSelectedUsers.length > 1;
+
+        modal.innerHTML = `
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in flex flex-col max-h-[80vh]">
+                    <header class="p-4 border-b flex justify-between items-center bg-gray-50">
+                        <h3 class="font-bold text-lg text-gray-800">Nova Conversa</h3>
+                        <button onclick="window.closeModal()" class="text-gray-500 text-xl">&times;</button>
+                    </header>
+                    <div class="p-4 space-y-3 border-b">
+                        <input oninput="window.searchUsers(this.value)" value="${
+                          state.newChatSearch
+                        }" placeholder="Cerca usuaris..." class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
+                        ${
+                          isGroup
+                            ? `<input id="group-name-input" type="text" placeholder="Nom del grup..." class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none animate-fade-in">`
+                            : ""
+                        }
+                    </div>
+                    <div class="overflow-y-auto p-2 space-y-1 flex-grow">
+                        ${
+                          filteredUsers.length === 0
+                            ? '<p class="text-center text-gray-500 py-4">No s\'han trobat usuaris.</p>'
+                            : filteredUsers
+                                .map((u) => {
+                                  const isSelected =
+                                    state.newChatSelectedUsers.includes(
+                                      u.username
+                                    );
+                                  return `
+                                <div onclick="window.toggleNewChatUser('${
+                                  u.username
+                                }')" class="flex items-center justify-between p-3 rounded cursor-pointer ${
+                                    isSelected
+                                      ? "bg-blue-50 border border-blue-200"
+                                      : "hover:bg-gray-100"
+                                  }">
+                                    <div><p class="font-semibold text-gray-800">${
+                                      u.name
+                                    }</p><p class="text-xs text-gray-500">@${
+                                    u.username
+                                  } • ${u.role}</p></div>
+                                    <div class="w-5 h-5 border rounded-full flex items-center justify-center ${
+                                      isSelected
+                                        ? "bg-blue-600 border-blue-600"
+                                        : "border-gray-400"
+                                    }">${
+                                    isSelected
+                                      ? '<svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>'
+                                      : ""
+                                  }</div>
+                                </div>`;
+                                })
+                                .join("")
+                        }
+                    </div>
+                    <div class="p-4 border-t bg-gray-50 flex justify-between items-center">
+                        <span class="text-sm text-gray-500">${
+                          state.newChatSelectedUsers.length
+                        } seleccionats</span>
+                        <button onclick="window.confirmCreateChat()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition disabled:opacity-50" ${
+                          state.newChatSelectedUsers.length === 0
+                            ? "disabled"
+                            : ""
+                        }>${isGroup ? "Crear Grup" : "Crear Xat"}</button>
+                    </div>
+                </div>`;
+        modal.classList.remove("hidden");
+      }
+
+      // --- GLOBALS ---
+      window.navigateTo = (view) => {
+        state.view = view;
+        if (view === "teacher_exams") fetchTeacherExams();
+        else if (view === "teacher_homework") fetchTeacherHomework();
+        else if (view === "student_grades") fetchStudentGrades();
+        else if (view === "student_homework") fetchStudentHomework();
+        else if (view === "student_practice_results") fetchPracticeResults();
+        else if (view === "calendar") fetchCalendarData();
+        else renderApp();
+      };
+
+      window.goBack = () => {
+        state.view =
+          state.currentUser.role === "Administrador"
+            ? "admin_dashboard"
+            : "dashboard";
+        renderApp();
+      };
+
+      window.logout = () => {
+        state.currentUser = null;
+        state.view = "login";
+        renderApp();
+      };
+      window.selectChat = (id) => {
+        state.currentChatId = id;
+        renderApp();
+      };
+
+      window.deleteMessage = async (chatId, messageId) => {
+        if (!confirm("Vols esborrar aquest missatge?")) return;
+        
+        const chatIdx = state.conversations.findIndex(c => c.id === chatId);
+        if (chatIdx === -1) return;
+        
+        const chat = state.conversations[chatIdx];
+        chat.messages = chat.messages.filter(msg => msg.id !== messageId);
+        
+        renderApp();
+        
+        await supabase
+          .from("conversations")
+          .update({ messages: chat.messages })
+          .eq("id", chatId);
+      };
+
+      initApp();
+    </script>
+  </body>
+</html>

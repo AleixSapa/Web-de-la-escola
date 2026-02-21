@@ -1,0 +1,1410 @@
+<!DOCTYPE html>
+<html lang="ca">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Futbol Posició (Aleatori)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js per al gràfic -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Font Inter -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #0f172a; /* Slate 900 */
+        color: #f8fafc; /* Slate 50 */
+      }
+      .fade-in {
+        animation: fadeIn 0.5s ease-in-out;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      /* Custom scrollbar for better look */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #1e293b;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #4b5563;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #22c55e;
+      }
+    </style>
+  </head>
+  <body class="min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="p-6 border-b border-gray-800">
+      <div class="max-w-6xl mx-auto flex items-center gap-3">
+        <div
+          class="w-8 h-8 bg-green-500 rounded-lg rotate-45 flex items-center justify-center shadow-lg shadow-green-500/20"
+        >
+          <div class="w-4 h-4 bg-white rounded-full -rotate-45"></div>
+        </div>
+        <h1 class="text-xl font-bold tracking-tight">Futbol Posició Logic</h1>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main
+      class="flex-1 flex flex-col items-center justify-center p-4 w-full max-w-6xl mx-auto"
+    >
+      <!-- SECTION: INTRO -->
+      <div id="intro-section" class="text-center max-w-3xl px-4 fade-in">
+        <div class="mb-8 relative inline-block">
+          <div
+            class="absolute -inset-1 bg-gradient-to-r from-green-600 to-emerald-600 rounded-full blur opacity-25"
+          ></div>
+          <span
+            class="relative px-4 py-1.5 rounded-full border border-gray-700 bg-gray-800/50 text-sm text-green-400 font-medium"
+          >
+            Respostes Aleatòries (Anti-patró)
+          </span>
+        </div>
+        <h1
+          class="text-5xl md:text-7xl font-black mb-6 leading-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-gray-400"
+        >
+          Descobreix la teva<br />posició ideal
+        </h1>
+        <p class="text-xl text-gray-400 mb-10 max-w-2xl mx-auto">
+          Respon a preguntes tàctiques i psicològiques. El nostre sistema
+          analitzarà matemàticament el teu perfil. L'ordre de les respostes
+          canvia cada vegada!
+        </p>
+        <button
+          onclick="startQuiz()"
+          class="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-white transition-all duration-200 bg-green-600 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 focus:ring-offset-gray-900 hover:bg-green-500 cursor-pointer"
+        >
+          Començar Avaluació
+          <svg
+            class="w-5 h-5 ml-2 transition-transform duration-200 group-hover:translate-x-1"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+            <polyline points="12 5 19 12 12 19"></polyline>
+          </svg>
+        </button>
+      </div>
+
+      <!-- SECTION: QUIZ -->
+      <div
+        id="quiz-section"
+        class="hidden max-w-2xl mx-auto w-full px-4 fade-in"
+      >
+        <div class="mb-8">
+          <div
+            class="flex justify-between text-sm text-gray-400 mb-2 font-medium"
+          >
+            <span id="question-counter">Pregunta 1</span>
+            <span id="total-counter">total</span>
+          </div>
+          <div class="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
+            <div
+              id="progress-bar"
+              class="bg-green-500 h-full transition-all duration-500 ease-out"
+              style="width: 0%"
+            ></div>
+          </div>
+        </div>
+
+        <h2
+          id="question-text"
+          class="text-2xl md:text-3xl font-bold text-white mb-8 leading-tight"
+        >
+          <!-- Question goes here -->
+        </h2>
+
+        <div id="options-container" class="space-y-4">
+          <!-- Buttons go here -->
+        </div>
+      </div>
+
+      <!-- SECTION: LOADING -->
+      <div id="loading-section" class="hidden text-center fade-in">
+        <div
+          class="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-6"
+        ></div>
+        <h2 class="text-2xl font-bold text-white mb-2">
+          Calculant Resultats...
+        </h2>
+        <p class="text-gray-400">Processant les teves dades tàctiques.</p>
+      </div>
+
+      <!-- SECTION: RESULTS -->
+      <div
+        id="results-section"
+        class="hidden max-w-4xl mx-auto w-full px-4 py-8 fade-in"
+      >
+        <div class="text-center mb-10">
+          <h2
+            class="text-xl text-gray-400 mb-2 font-medium tracking-wide uppercase"
+          >
+            La teva posició ideal és
+          </h2>
+          <div class="flex flex-col items-center justify-center gap-2 mb-6">
+            <h1
+              id="result-position"
+              class="text-4xl md:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-600"
+            >
+              <!-- Posició -->
+            </h1>
+            <span
+              id="result-lateralitat"
+              class="px-4 py-1 bg-gray-700 text-green-400 rounded-full text-lg font-bold border border-green-500/30 uppercase tracking-widest hidden"
+            >
+              <!-- Lateralitat -->
+            </span>
+          </div>
+
+          <p
+            id="result-analysis"
+            class="text-lg text-gray-300 max-w-2xl mx-auto leading-relaxed border-l-4 border-green-500 pl-6 py-2 bg-gray-800/50 rounded-r-lg text-left italic"
+          >
+            <!-- Text analysis -->
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+          <!-- Chart Section -->
+          <div
+            class="bg-gray-800 rounded-2xl p-4 shadow-xl border border-gray-700 h-[350px] flex items-center justify-center relative"
+          >
+            <canvas id="radarChart"></canvas>
+          </div>
+
+          <!-- Breakdown Section -->
+          <div class="space-y-6 flex flex-col justify-center">
+            <h3 class="text-2xl font-bold text-white mb-2">
+              Detalls de l'Avaluació
+            </h3>
+            <div id="breakdown-container" class="space-y-4">
+              <!-- Bars dynamically injected here -->
+            </div>
+
+            <div class="pt-4 border-t border-gray-700 mt-2">
+              <div class="flex justify-between items-center">
+                <span class="text-gray-400">Zona Preferent</span>
+                <span
+                  id="breakdown-lateralitat"
+                  class="text-white font-bold text-lg"
+                  >Indefinit</span
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="text-center">
+          <button
+            onclick="restartApp()"
+            class="inline-flex items-center justify-center px-8 py-4 text-base font-bold text-gray-900 transition-all duration-200 bg-green-500 rounded-full hover:bg-green-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 focus:ring-offset-gray-900 shadow-lg hover:shadow-green-500/50 cursor-pointer"
+          >
+            Tornar a començar
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="p-6 text-center text-gray-600 text-sm">
+      <p>© 2025 Futbol Posició. Algoritme Local.</p>
+    </footer>
+
+    <!-- Logic -->
+    <script>
+      const QUESTIONS = [
+        {
+          id: 1,
+          text: "Quina és la teva reacció principal quan l'equip rival té la pilota?",
+          options: [
+            {
+              id: "a",
+              text: "Corro endarrere ràpidament per protegir la porteria.",
+            },
+            {
+              id: "b",
+              text: "Intento tallar la passada o pressionar al jugador amb pilota immediatament.",
+            },
+            {
+              id: "c",
+              text: "Organitzo els companys i cobreixo espais al mig del camp.",
+            },
+            {
+              id: "d",
+              text: "Espero a dalt buscant un espai per al contraatac.",
+            },
+          ],
+        },
+        {
+          id: 2,
+          text: "Com et descriuries físicament?",
+          options: [
+            {
+              id: "a",
+              text: "Àgil, amb reflexos explosius i bona envergadura.",
+            },
+            {
+              id: "b",
+              text: "Fort, contundent i difícil de superar en l'1 contra 1.",
+            },
+            {
+              id: "c",
+              text: "Resistent, capaç de córrer tot el partit sense cansar-me.",
+            },
+            { id: "d", text: "Ràpid, explosiu en distàncies curtes." },
+          ],
+        },
+        {
+          id: 3,
+          text: "Què gaudeixes més fent durant un partit?",
+          options: [
+            { id: "a", text: "Fer una aturada impossible que salva l'equip." },
+            { id: "b", text: "Robar la pilota neta a l'últim moment." },
+            { id: "c", text: "Fer una assistència perfecta entre línies." },
+            { id: "d", text: "Marcar el gol de la victòria." },
+          ],
+        },
+        {
+          id: 4,
+          text: "Com és el teu joc amb els peus?",
+          options: [
+            {
+              id: "a",
+              text: "Funcional, serveix per rebutjar o passar en curt.",
+            },
+            { id: "b", text: "Segur, no em complico, busco la passada fàcil." },
+            { id: "c", text: "Tècnic, m'agrada tenir la pilota i distribuir." },
+            { id: "d", text: "Hàbil, m'agrada regatejar i encarar." },
+          ],
+        },
+        {
+          id: 5,
+          text: "En una situació de pressió alta del rival, què fas?",
+          options: [
+            { id: "a", text: "Ordeno a la defensa on col·locar-se per rebre." },
+            {
+              id: "b",
+              text: "Busco una passada de seguretat o l'envio lluny si cal.",
+            },
+            {
+              id: "c",
+              text: "Baixo a rebre la pilota per ajudar a treure-la jugada.",
+            },
+            {
+              id: "d",
+              text: "Em desmarco en profunditat per oferir una sortida llarga.",
+            },
+          ],
+        },
+        {
+          id: 6,
+          text: "Quina qualitat valores més en un jugador?",
+          options: [
+            { id: "a", text: "Seguretat i col·locació." },
+            { id: "b", text: "Contundència i lideratge." },
+            { id: "c", text: "Visió de joc i intel·ligència." },
+            { id: "d", text: "Instint i finalització." },
+          ],
+        },
+        {
+          id: 7,
+          text: "Si comets un error greu, com reacciones?",
+          options: [
+            {
+              id: "a",
+              text: "M'oblido a l'instant, no puc dubtar en la següent acció.",
+            },
+            {
+              id: "b",
+              text: "M'enfado amb mi mateix però recupero la posició ràpid.",
+            },
+            { id: "c", text: "Analitzo què ha fallat per no repetir-ho." },
+            {
+              id: "d",
+              text: "Intento compensar-ho marcant o creant perill de seguida.",
+            },
+          ],
+        },
+        {
+          id: 8,
+          text: "T'agrada cridar i donar ordres als companys?",
+          options: [
+            {
+              id: "a",
+              text: "Sí, constantment, veig tot el camp des del darrere.",
+            },
+            {
+              id: "b",
+              text: "Sí, per mantenir la línia defensiva organitzada.",
+            },
+            { id: "c", text: "A vegades, per indicar passades o moviments." },
+            {
+              id: "d",
+              text: "No gaire, prefereixo concentrar-me en el meu joc.",
+            },
+          ],
+        },
+        {
+          id: 9,
+          text: "On et sents més còmode rebent la pilota?",
+          options: [
+            { id: "a", text: "Dins la meva pròpia àrea, sense pressió." },
+            { id: "b", text: "A la línia defensiva, per començar el joc." },
+            { id: "c", text: "Entre línies, on es couen les jugades." },
+            {
+              id: "d",
+              text: "D'esquena a la porteria rival o a l'espai buit.",
+            },
+          ],
+        },
+        {
+          id: 10,
+          text: "Quin és el teu pitjor malson en un partit?",
+          options: [
+            { id: "a", text: "Un error meu que acaba en gol directament." },
+            {
+              id: "b",
+              text: "Que em guanyin l'esquena amb una passada llarga.",
+            },
+            {
+              id: "c",
+              text: "Perdre la pilota en una zona perillosa i deixar l'equip obert.",
+            },
+            { id: "d", text: "Fallar una ocasió clara de gol sense porter." },
+          ],
+        },
+        {
+          id: 11,
+          text: "El teu equip té un córner a favor. Què fas?",
+          options: [
+            { id: "a", text: "Em quedo sota pals vigilant la meva porteria." },
+            {
+              id: "b",
+              text: "Pujo a rematar amb potència o em quedo tancant el contraatac.",
+            },
+            {
+              id: "c",
+              text: "Espero al rebuig a la frontal de l'àrea per xutar o tornar a centrar.",
+            },
+            {
+              id: "d",
+              text: "Busco la rematada al primer pal o a l'àrea petita.",
+            },
+          ],
+        },
+        {
+          id: 12,
+          text: "Com és la teva relació amb el gol?",
+          options: [
+            { id: "a", text: "La meva feina és evitar-los, no fer-los." },
+            {
+              id: "b",
+              text: "Si marco és un extra, la meva prioritat és la porteria a zero.",
+            },
+            {
+              id: "c",
+              text: "M'agrada assistir, però xuto si tinc oportunitat clara.",
+            },
+            { id: "d", text: "Visc pel gol, és la meva obsessió." },
+          ],
+        },
+        {
+          id: 13,
+          text: "Quina zona del camp sents que domines més?",
+          options: [
+            { id: "a", text: "L'àrea petita i els seus voltants." },
+            {
+              id: "b",
+              text: "El carril central defensiu o les bandes defensives.",
+            },
+            { id: "c", text: "El cercle central i la zona de creació." },
+            { id: "d", text: "L'últim terç del camp, a prop de l'àrea rival." },
+          ],
+        },
+        {
+          id: 14,
+          text: "Hi ha una pilota dividida al mig del camp. Què fas?",
+          options: [
+            {
+              id: "a",
+              text: "Calculo si puc arribar abans que el rival o em quedo a l'expectativa.",
+            },
+            { id: "b", text: "Hi vaig amb tot, llançant-me a terra si cal." },
+            {
+              id: "c",
+              text: "Intento anticipar-me per controlar-la i jugar-la ràpid.",
+            },
+            {
+              id: "d",
+              text: "Espero que un company la guanyi per desmarcar-me.",
+            },
+          ],
+        },
+        {
+          id: 15,
+          text: "Un rival et encara en un 1 contra 1 defensiu. Quina és la teva estratègia?",
+          options: [
+            {
+              id: "a",
+              text: "Aguantar la posició, fer-me gran i tapar espais.",
+            },
+            {
+              id: "b",
+              text: "Entrar fort al cos per desestabilitzar-lo o prendre-li la pilota.",
+            },
+            { id: "c", text: "Temporitzar i esperar ajudes dels companys." },
+            {
+              id: "d",
+              text: "Intentar robar-la ràpid (si estic baixant a defensar).",
+            },
+          ],
+        },
+        {
+          id: 16,
+          text: "Tens la pilota i un defensa al davant. Què fas?",
+          options: [
+            { id: "a", text: "Busco una passada llarga precisa a l'espai." },
+            {
+              id: "b",
+              text: "Passo la pilota al company més proper i mantinc la posició.",
+            },
+            { id: "c", text: "Busco una paret o una combinació ràpida." },
+            {
+              id: "d",
+              text: "Intento el regat o l'autopassada per superar-lo.",
+            },
+          ],
+        },
+        {
+          id: 17,
+          text: "Com gestiones el teu esforç físic durant els 90 minuts?",
+          options: [
+            {
+              id: "a",
+              text: "Explosivitat pura en moments clau, la resta del temps concentració.",
+            },
+            {
+              id: "b",
+              text: "Intensitat alta, molts esprints curts i xocs constants.",
+            },
+            {
+              id: "c",
+              text: "Ritme constant, no paro de moure'm per oferir línies de passada.",
+            },
+            {
+              id: "d",
+              text: "Dosifico esforços per tenir frescor i velocitat als metres finals.",
+            },
+          ],
+        },
+        {
+          id: 18,
+          text: "Preferiries un entrenador que...",
+          options: [
+            {
+              id: "a",
+              text: "Et doni llibertat total per prendre decisions sota pals.",
+            },
+            { id: "b", text: "Et demani disciplina tàctica fèrria i ordre." },
+            {
+              id: "c",
+              text: "Et deixi organitzar el joc de l'equip al teu criteri.",
+            },
+            {
+              id: "d",
+              text: "Et permeti improvisar i no t'obligui a baixar molt a defensar.",
+            },
+          ],
+        },
+        {
+          id: 19,
+          text: "Com et consideres en el joc aeri?",
+          options: [
+            {
+              id: "a",
+              text: "Imprescindible, he de dominar l'espai aeri de l'àrea.",
+            },
+            {
+              id: "b",
+              text: "Molt bo, guanyo la majoria de duels defensius per alt.",
+            },
+            {
+              id: "c",
+              text: "Normal, disputo les pilotes però prefereixo la pilota a terra.",
+            },
+            {
+              id: "d",
+              text: "Bo en la rematada a porteria, però no tant en la disputa al mig camp.",
+            },
+          ],
+        },
+        {
+          id: 20,
+          text: "Quin és el teu nivell d'agressivitat en el joc?",
+          options: [
+            {
+              id: "a",
+              text: "Controlada, l'important és no fer penals absurds ni arriscar.",
+            },
+            {
+              id: "b",
+              text: "Molt alta, el rival ha de saber que sóc allà i notar-ho.",
+            },
+            {
+              id: "c",
+              text: "Mitjana, utilitzo el cos per protegir la pilota i guanyar espai.",
+            },
+            {
+              id: "d",
+              text: "Baixa, evito el contacte per buscar l'espai lliure.",
+            },
+          ],
+        },
+        {
+          id: 21,
+          text: "El teu equip guanya 1-0 al minut 85. Què fas?",
+          options: [
+            {
+              id: "a",
+              text: "Perdo temps en cada servei de porteria per refredar el partit.",
+            },
+            {
+              id: "b",
+              text: "Rebutjo qualsevol pilota que s'apropi a l'àrea sense contemplacions.",
+            },
+            {
+              id: "c",
+              text: "Intento tenir la pilota i adormir el partit amb passades curtes.",
+            },
+            {
+              id: "d",
+              text: "Busco la pilota al córner rival per matar el partit.",
+            },
+          ],
+        },
+        {
+          id: 22,
+          text: "Quin paper jugues en la sortida de pilota des del darrere?",
+          options: [
+            {
+              id: "a",
+              text: "Sóc l'iniciador, buscant el lateral o el central lliure.",
+            },
+            {
+              id: "b",
+              text: "Ofereixo una línia de passada segura als costats.",
+            },
+            {
+              id: "c",
+              text: "Baixo a buscar-la per connectar defensa i atac.",
+            },
+            {
+              id: "d",
+              text: "Em situo lluny per fixar els centrals rivals i crear espais.",
+            },
+          ],
+        },
+        {
+          id: 23,
+          text: "Com reacciones davant les provocacions d'un rival?",
+          options: [
+            {
+              id: "a",
+              text: "Ignoro totalment, no em puc permetre una targeta vermella.",
+            },
+            {
+              id: "b",
+              text: "Li torno amb més duresa en la següent jugada dividida.",
+            },
+            {
+              id: "c",
+              text: "Intento calmar la situació parlant amb l'àrbitre.",
+            },
+            {
+              id: "d",
+              text: "Utilitzo la ràbia per motivar-me i intentar marcar-li un gol.",
+            },
+          ],
+        },
+        {
+          id: 24,
+          text: "Has de prendre una decisió en mil·lèsimes de segon. En què confies?",
+          options: [
+            { id: "a", text: "En els meus reflexos instintius." },
+            { id: "b", text: "En la meva experiència i posicionament previ." },
+            { id: "c", text: "En la meva visió perifèrica del camp." },
+            {
+              id: "d",
+              text: "En la meva intuïció i talent natural per improvisar.",
+            },
+          ],
+        },
+        {
+          id: 25,
+          text: "Què és el que més t'irrita dels teus companys?",
+          options: [
+            {
+              id: "a",
+              text: "Que no baixin a defensar quan jo he fet una aturada i hi ha rebuig.",
+            },
+            {
+              id: "b",
+              text: "Que perdin pilotes fàcils en zones compromeses de seguretat.",
+            },
+            {
+              id: "c",
+              text: "Que no es desmarquin quan tinc la pilota controlada.",
+            },
+            {
+              id: "d",
+              text: "Que no em passin la pilota quan estic sol davant del porter.",
+            },
+          ],
+        },
+        {
+          id: 26,
+          text: "Quin tipus de passada t'agrada més fer?",
+          options: [
+            {
+              id: "a",
+              text: "El servei llarg amb la mà o el peu per iniciar un contraatac.",
+            },
+            {
+              id: "b",
+              text: "El canvi de joc de banda a banda per descongestionar.",
+            },
+            {
+              id: "c",
+              text: "La passada filtrada entre línies que deixa sol al company.",
+            },
+            { id: "d", text: "La passada a la xarxa (el xut)." },
+          ],
+        },
+        {
+          id: 27,
+          text: "Com et mous quan no tens la pilota?",
+          options: [
+            {
+              id: "a",
+              text: "Basculo segons on estigui la pilota per tapar angles de tir.",
+            },
+            {
+              id: "b",
+              text: "Mantinc la línia del fora de joc i faig cobertures als laterals.",
+            },
+            {
+              id: "c",
+              text: "Busco constantment espais lliures per rebre i girar-me.",
+            },
+            {
+              id: "d",
+              text: "Faig desmarcatges de ruptura o arrossegament de defenses.",
+            },
+          ],
+        },
+        {
+          id: 28,
+          text: "En una transició defensiva (ens roben la pilota), quina és la teva prioritat?",
+          options: [
+            { id: "a", text: "Organitzar la defensa a crits mentre reculo." },
+            {
+              id: "b",
+              text: "Fer una falta tàctica si és necessari per aturar el joc.",
+            },
+            {
+              id: "c",
+              text: "Pressionar la pèrdua immediatament per recuperar ràpid.",
+            },
+            {
+              id: "d",
+              text: "Desconnectar una mica esperant que la recuperem per tornar a atacar.",
+            },
+          ],
+        },
+        {
+          id: 29,
+          text: "Quina frase et defineix millor com a jugador?",
+          options: [
+            { id: "a", text: "La porteria a zero és la clau de l'èxit." },
+            {
+              id: "b",
+              text: "L'atac guanya partits, la defensa guanya campionats.",
+            },
+            {
+              id: "c",
+              text: "El futbol es juga amb el cap, els peus són només l'eina.",
+            },
+            { id: "d", text: "El risc és necessari per aconseguir la glòria." },
+          ],
+        },
+        {
+          id: 30,
+          text: "Si haguessis de triar una habilitat 'superheroica', quina seria?",
+          options: [
+            { id: "a", text: "Mans d'acer (blocatge perfecte)." },
+            { id: "b", text: "Mur impassable (ningú et regateja)." },
+            { id: "c", text: "Ulls al clatell (visió 360º)." },
+            { id: "d", text: "Canó a la cama (xut imparable)." },
+          ],
+        },
+        {
+          id: 31,
+          text: "Quin és el teu ritme de joc ideal?",
+          options: [
+            {
+              id: "a",
+              text: "Un partit trencat amb moltes arribades (on puc lluir-me).",
+            },
+            {
+              id: "b",
+              text: "Un partit travat, físic i amb poques ocasions de gol.",
+            },
+            {
+              id: "c",
+              text: "Un partit controlat, amb possessió llarga i pausada.",
+            },
+            { id: "d", text: "Un partit boig, d'anada i tornada constant." },
+          ],
+        },
+        {
+          id: 32,
+          text: "Quina és la teva major virtut psicològica?",
+          options: [
+            { id: "a", text: "La concentració extrema sota pals." },
+            { id: "b", text: "La valentia i el sacrifici per l'equip." },
+            { id: "c", text: "La calma i la sang freda amb la pilota." },
+            { id: "d", text: "L'ambició i la fam de gol insaciable." },
+          ],
+        },
+        {
+          id: 33,
+          text: "Quina és la teva major debilitat o por?",
+          options: [
+            {
+              id: "a",
+              text: "Sortir malament en un centre aeri i deixar la porteria buida.",
+            },
+            {
+              id: "b",
+              text: "Ser massa lent girant-me quan em guanyen l'esquena.",
+            },
+            {
+              id: "c",
+              text: "No tenir prou físic per aguantar el ritme tot el partit.",
+            },
+            { id: "d", text: "La falta de punteria en els dies clau." },
+          ],
+        },
+        {
+          id: 34,
+          text: "En quin tipus d'estadi t'agrada jugar més?",
+          options: [
+            {
+              id: "a",
+              text: "En un on l'afició rival està molt a prop i em pressiona (em motiva).",
+            },
+            {
+              id: "b",
+              text: "En un camp difícil on es lluita cada metre de gespa.",
+            },
+            {
+              id: "c",
+              text: "En una catifa de gespa perfecta per fer rodar la pilota.",
+            },
+            {
+              id: "d",
+              text: "En un estadi gran, amb molts espais per córrer.",
+            },
+          ],
+        },
+        {
+          id: 35,
+          text: "Última pregunta: Tries l'equip pel qual jugaràs. Què busques?",
+          options: [
+            {
+              id: "a",
+              text: "Un equip sòlid defensivament que em protegeixi.",
+            },
+            {
+              id: "b",
+              text: "Un equip guerrer, que no dona cap pilota per perduda.",
+            },
+            {
+              id: "c",
+              text: "Un equip que vulgui la possessió i jugui bonic.",
+            },
+            {
+              id: "d",
+              text: "Un equip ofensiu que generi moltes ocasions, encara que encaixi.",
+            },
+          ],
+        },
+        {
+          id: 36,
+          text: "Amb quin peu xutes la pilota amb més potència?",
+          options: [
+            { id: "a", text: "Amb el dret, clarament." },
+            { id: "b", text: "Amb l'esquerre, és el meu canó." },
+            { id: "c", text: "Amb els dos per igual, sóc ambidextre." },
+            {
+              id: "d",
+              text: "Depèn de la jugada, però tinc preferència pel dret.",
+            },
+          ],
+        },
+        {
+          id: 37,
+          text: "Quan ataques, per on t'agrada més córrer?",
+          options: [
+            { id: "a", text: "Pel carril central, tinc visió de tot el camp." },
+            {
+              id: "b",
+              text: "Enganxat a la línia de banda dreta per centrar.",
+            },
+            {
+              id: "c",
+              text: "Enganxat a la línia de banda esquerra per desbordar.",
+            },
+            { id: "d", text: "M'agrada fer diagonals de fora cap a dins." },
+          ],
+        },
+        {
+          id: 38,
+          text: "Si jugues a banda, quina és la teva tendència natural?",
+          options: [
+            { id: "a", text: "Arribar a la línia de fons i centrar." },
+            {
+              id: "b",
+              text: "Retallar cap a l'interior per xutar amb la cama bona.",
+            },
+            { id: "c", text: "No jugo a banda, sóc jugador de centre." },
+            { id: "d", text: "Combinar amb el lateral i entrar a l'àrea." },
+          ],
+        },
+        {
+          id: 39,
+          text: "Defensivament, on et sents més segur?",
+          options: [
+            { id: "a", text: "Al centre de la defensa, controlant la línia." },
+            { id: "b", text: "A la banda dreta, tancant l'extrem rival." },
+            { id: "c", text: "A la banda esquerra, evitant centres." },
+            { id: "d", text: "A tot arreu, sóc un comodí defensiu." },
+          ],
+        },
+        {
+          id: 40,
+          text: "En un servei de banda (sacada de banda), tu...",
+          options: [
+            {
+              id: "a",
+              text: "Els faig jo sovint perquè jugo a prop de la línia.",
+            },
+            { id: "b", text: "Em desmarco per rebre'l." },
+            { id: "c", text: "Espero al mig per la segona jugada." },
+            { id: "d", text: "Sóc el porter, no faig serveis de banda." },
+          ],
+        },
+        {
+          id: 41,
+          text: "Preferiries jugar a 'cama canviada' (ex: dretà a l'esquerra)?",
+          options: [
+            { id: "a", text: "Sí, m'encanta per buscar el xut al pal llarg." },
+            {
+              id: "b",
+              text: "No, prefereixo la meva banda natural per centrar millor.",
+            },
+            { id: "c", text: "M'és igual, domino les dues cames." },
+            {
+              id: "d",
+              text: "Prefereixo jugar pel centre i oblidar-me de les bandes.",
+            },
+          ],
+        },
+        {
+          id: 42,
+          text: "Quin jugador històric t'agrada més?",
+          options: [
+            { id: "a", text: "Xavi o Pirlo (Cerebro central)." },
+            { id: "b", text: "Dani Alves o Cafú (Carriler dret incansable)." },
+            {
+              id: "c",
+              text: "Roberto Carlos o Marcelo (Carriler esquerre màgic).",
+            },
+            { id: "d", text: "Robben o Messi (Extrem a cama canviada)." },
+          ],
+        },
+        {
+          id: 43,
+          text: "Com orientes el cos quan reps la pilota?",
+          options: [
+            { id: "a", text: "Sempre encarat a porteria rival." },
+            {
+              id: "b",
+              text: "Perfilat cap a la banda dreta per sortir corrents.",
+            },
+            {
+              id: "c",
+              text: "Perfilat cap a la banda esquerra per protegir-la.",
+            },
+            { id: "d", text: "D'esquena per aguantar la posició." },
+          ],
+        },
+        {
+          id: 44,
+          text: "Si ets a la banda i tens espai, què fas?",
+          options: [
+            { id: "a", text: "Tiro l'autopassada llarga i corro." },
+            { id: "b", text: "Freno i busco una associació interior." },
+            { id: "c", text: "Busco el centre ràpid a l'àrea." },
+            { id: "d", text: "No acostumo a ser a la banda." },
+          ],
+        },
+        {
+          id: 45,
+          text: "Quin espai defensiu et costa més cobrir?",
+          options: [
+            { id: "a", text: "L'esquena dels centrals." },
+            { id: "b", text: "L'esquena del lateral dret." },
+            { id: "c", text: "L'esquena del lateral esquerre." },
+            { id: "d", text: "La zona entre el migcampista i la defensa." },
+          ],
+        },
+        {
+          id: 46,
+          text: "Ets el capità de l'equip. Per què t'han triat?",
+          options: [
+            { id: "a", text: "Pel meu caràcter i veu de comandament." },
+            {
+              id: "b",
+              text: "Per la meva qualitat tècnica, sóc el líder en joc.",
+            },
+            { id: "c", text: "Per la meva antiguitat i compromís." },
+            {
+              id: "d",
+              text: "No sóc capità, prefereixo no tenir aquesta responsabilitat.",
+            },
+          ],
+        },
+        {
+          id: 47,
+          text: "Com reacciones si l'entrenador et substitueix?",
+          options: [
+            {
+              id: "a",
+              text: "Surto corrents per no perdre temps, l'equip és el primer.",
+            },
+            { id: "b", text: "M'enfado visiblement, volia jugar més." },
+            { id: "c", text: "Demano explicacions tàctiques a la banqueta." },
+            { id: "d", text: "Surto tranquil, he fet la meva feina." },
+          ],
+        },
+        {
+          id: 48,
+          text: "Què opines del VAR?",
+          options: [
+            { id: "a", text: "M'agrada, fa el joc més just." },
+            { id: "b", text: "El detesto, talla el ritme i l'emoció." },
+            { id: "c", text: "M'és igual, jo jugo i que ells decideixin." },
+            {
+              id: "d",
+              text: "És útil per als fores de joc, però no per a les faltes.",
+            },
+          ],
+        },
+        {
+          id: 49,
+          text: "Has de fer una falta tàctica per aturar un contraatac. La fas?",
+          options: [
+            { id: "a", text: "Sempre, targeta groga 'intel·ligent'." },
+            { id: "b", text: "Només si és l'últim recurs." },
+            {
+              id: "c",
+              text: "No, confio en la meva velocitat per recuperar-la netament.",
+            },
+            { id: "d", text: "No, tinc por de fer mal o que m'expulsin." },
+          ],
+        },
+        {
+          id: 50,
+          text: "Pregunta final: Si haguessis de jugar una final de Champions, quin rol voldries?",
+          options: [
+            { id: "a", text: "L'heroi que atura el penal decisiu." },
+            {
+              id: "b",
+              text: "El mur que no deixa passar ningú en 120 minuts.",
+            },
+            { id: "c", text: "El cervell que dóna l'assistència del gol." },
+            {
+              id: "d",
+              text: "L'autor del gol de la victòria a l'últim minut.",
+            },
+          ],
+        },
+      ];
+
+      // --- STATE ---
+      let currentQuestionIndex = 0;
+      let userAnswers = [];
+      let chartInstance = null;
+      let selectedOptionId = null;
+
+      // --- DOM ELEMENTS ---
+      const sections = {
+        intro: document.getElementById("intro-section"),
+        quiz: document.getElementById("quiz-section"),
+        loading: document.getElementById("loading-section"),
+        results: document.getElementById("results-section"),
+      };
+
+      const quizEls = {
+        current: document.getElementById("question-counter"),
+        total: document.getElementById("total-counter"),
+        bar: document.getElementById("progress-bar"),
+        text: document.getElementById("question-text"),
+        options: document.getElementById("options-container"),
+      };
+
+      // --- FUNCTIONS ---
+
+      function showSection(sectionName) {
+        Object.values(sections).forEach((el) => el.classList.add("hidden"));
+        sections[sectionName].classList.remove("hidden");
+      }
+
+      function startQuiz() {
+        currentQuestionIndex = 0;
+        userAnswers = [];
+        showSection("quiz");
+        renderQuestion();
+      }
+
+      function renderQuestion() {
+        const question = QUESTIONS[currentQuestionIndex];
+
+        // Update Headers
+        quizEls.current.textContent = `Pregunta ${currentQuestionIndex + 1}`;
+        quizEls.total.textContent = `${QUESTIONS.length} total`;
+
+        // Update Progress
+        const progress = (currentQuestionIndex / QUESTIONS.length) * 100;
+        quizEls.bar.style.width = `${progress}%`;
+
+        // Update Text
+        quizEls.text.textContent = question.text;
+
+        // SHUFFLE OPTIONS
+        // We clone the options array and shuffle it
+        const shuffledOptions = [...question.options].sort(
+          () => Math.random() - 0.5
+        );
+
+        // Render
+        quizEls.options.innerHTML = "";
+        shuffledOptions.forEach((option, index) => {
+          // Determine Visual Label (A, B, C, D) based on INDEX, not ID.
+          // This way, the top button is always "A", but the underlying logic might be "D" (Forward).
+          const visualLabel = String.fromCharCode(65 + index); // 65 is 'A'
+
+          const btn = document.createElement("button");
+          btn.className =
+            "w-full text-left p-6 rounded-xl bg-gray-800 border border-gray-700 hover:border-green-500 hover:bg-gray-750 transition-all duration-200 group focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-900";
+
+          // IMPORTANT: We pass the option object, which contains the ORIGINAL id ('a', 'b', etc.)
+          btn.onclick = () => handleAnswer(option);
+
+          btn.innerHTML = `
+                    <span class="flex items-center">
+                        <span class="w-8 h-8 rounded-full bg-gray-700 text-green-500 flex items-center justify-center font-bold mr-4 group-hover:bg-green-500 group-hover:text-white transition-colors">
+                            ${visualLabel}
+                        </span>
+                        <span class="text-gray-200 group-hover:text-white text-lg">
+                            ${option.text}
+                        </span>
+                    </span>
+                `;
+          quizEls.options.appendChild(btn);
+        });
+      }
+
+      function handleAnswer(option) {
+        const question = QUESTIONS[currentQuestionIndex];
+        // Here we store the original ID (e.g. 'a', 'b') regardless of where it appeared on screen
+        userAnswers.push({
+          questionId: question.id,
+          selectedOptionId: option.id,
+          selectedOptionText: option.text.toLowerCase(),
+        });
+
+        if (currentQuestionIndex < QUESTIONS.length - 1) {
+          currentQuestionIndex++;
+          renderQuestion();
+        } else {
+          // Finish
+          quizEls.bar.style.width = "100%";
+          calculateLocalResults();
+        }
+      }
+
+      // --- ALGORITME LOCAL (Sense IA) ---
+      function calculateLocalResults() {
+        showSection("loading");
+
+        // 1. Inicialitzar puntuacions
+        let scores = { porter: 0, defensa: 0, migcampista: 0, delanter: 0 };
+        let latScores = { left: 0, right: 0, center: 0 };
+
+        // 2. Processar respostes
+        userAnswers.forEach((answer) => {
+          // Lògica posicional (Generalment A=Porter, B=Defensa, C=Mig, D=Davant)
+          // Aquesta lògica aplica principalment a les primeres 35 preguntes
+          if (answer.questionId <= 35) {
+            if (answer.selectedOptionId === "a") scores.porter += 1;
+            if (answer.selectedOptionId === "b") scores.defensa += 1;
+            if (answer.selectedOptionId === "c") scores.migcampista += 1;
+            if (answer.selectedOptionId === "d") scores.delanter += 1;
+          } else {
+            // Preguntes 36-50: També contribueixen però menys (o específiques)
+            // Simplifiquem afegint pes general
+            if (answer.selectedOptionId === "a") scores.porter += 0.5; // Moltes opcions 'A' són conservadores
+            if (answer.selectedOptionId === "b") scores.defensa += 0.5;
+            if (answer.selectedOptionId === "c") scores.migcampista += 0.5;
+            if (answer.selectedOptionId === "d") scores.delanter += 0.5;
+          }
+
+          // Lògica de Lateralitat (Cerca de paraules clau)
+          const text = answer.selectedOptionText;
+          if (text.includes("dret") || text.includes("dreta"))
+            latScores.right += 1;
+          if (text.includes("esquerre") || text.includes("esquerra"))
+            latScores.left += 1;
+          if (
+            text.includes("centre") ||
+            text.includes("central") ||
+            text.includes("interior")
+          )
+            latScores.center += 1;
+        });
+
+        // 3. Normalitzar resultats (0-100%)
+        // El màxim teòric per posició és aprox 35 punts. Normalitzem sobre 40 per seguretat.
+        const totalPoints = Object.values(scores).reduce((a, b) => a + b, 0);
+
+        // Evitar divisió per zero
+        const factor =
+          totalPoints > 0
+            ? 100 /
+              Math.max(
+                scores.porter,
+                scores.defensa,
+                scores.migcampista,
+                scores.delanter
+              )
+            : 1;
+
+        // Ajustar perquè el guanyador tingui ~90-95% i els altres baixin proporcionalment
+        // Simple approach: rule of three based on max score possible (~30)
+        const normalize = (val) => Math.min(Math.round((val / 30) * 100), 100);
+
+        const finalScores = {
+          porter: normalize(scores.porter),
+          defensa: normalize(scores.defensa),
+          migcampista: normalize(scores.migcampista),
+          delanter: normalize(scores.delanter),
+        };
+
+        // 4. Determinar guanyador
+        const maxScore = Math.max(
+          finalScores.porter,
+          finalScores.defensa,
+          finalScores.migcampista,
+          finalScores.delanter
+        );
+        let mainPosition = "";
+        let analysisText = "";
+
+        if (finalScores.porter === maxScore) {
+          mainPosition = "Porter";
+          analysisText =
+            "La teva mentalitat és la d'un guardià. Prioritzes la seguretat, tens grans reflexos i assumeixes la responsabilitat de ser l'última línia de defensa.";
+        } else if (finalScores.delanter === maxScore) {
+          mainPosition = "Davanter";
+          analysisText =
+            "Tens instint assassí de cara a porteria. Busques sempre l'espai, vius pel gol i t'agrada prendre riscos per aconseguir la glòria per al teu equip.";
+        } else if (finalScores.migcampista === maxScore) {
+          mainPosition = "Migcampista";
+          analysisText =
+            "Ets el cervell de l'equip. T'agrada organitzar, tens bona visió de joc i connectes la defensa amb l'atac amb intel·ligència i precisió.";
+        } else {
+          mainPosition = "Defensa";
+          analysisText =
+            "Ets un mur infranquejable. Gaudeixes frustrant els rivals, tens contundència física i tàctica, i saps mantenir l'ordre sota pressió.";
+        }
+
+        // 5. Determinar Lateralitat
+        let latResult = "Indistint";
+        if (
+          latScores.right > latScores.left + 1 &&
+          latScores.right > latScores.center
+        )
+          latResult = "Dreta";
+        else if (
+          latScores.left > latScores.right + 1 &&
+          latScores.left > latScores.center
+        )
+          latResult = "Esquerra";
+        else if (
+          latScores.center > latScores.right &&
+          latScores.center > latScores.left
+        )
+          latResult = "Centre";
+
+        // Simular un petit retard per "efecte de càlcul"
+        setTimeout(() => {
+          showResults({
+            ...finalScores,
+            lateralitat: latResult,
+            analysis: analysisText,
+          });
+        }, 1500);
+      }
+
+      function showResults(data) {
+        const maxScore = Math.max(
+          data.porter,
+          data.defensa,
+          data.migcampista,
+          data.delanter
+        );
+        let mainPosition = "";
+        if (data.porter === maxScore) mainPosition = "Porter";
+        else if (data.delanter === maxScore) mainPosition = "Davanter";
+        else if (data.migcampista === maxScore) mainPosition = "Migcampista";
+        else mainPosition = "Defensa";
+
+        // Update DOM
+        document.getElementById("result-position").textContent = mainPosition;
+        document.getElementById(
+          "result-analysis"
+        ).textContent = `"${data.analysis}"`;
+
+        const latEl = document.getElementById("result-lateralitat");
+        latEl.textContent = data.lateralitat;
+        latEl.classList.remove("hidden");
+        document.getElementById("breakdown-lateralitat").textContent =
+          data.lateralitat;
+
+        // Render Breakdown Bars
+        const stats = [
+          { label: "Porter", value: data.porter },
+          { label: "Defensa", value: data.defensa },
+          { label: "Migcampista", value: data.migcampista },
+          { label: "Davanter", value: data.delanter },
+        ];
+
+        const container = document.getElementById("breakdown-container");
+        container.innerHTML = "";
+        stats.forEach((stat) => {
+          const div = document.createElement("div");
+          div.innerHTML = `
+                    <div class="flex justify-between mb-1">
+                        <span class="text-base font-medium text-gray-300">${stat.label}</span>
+                        <span class="text-sm font-bold text-white">${stat.value}%</span>
+                    </div>
+                    <div class="w-full bg-gray-700 rounded-full h-2.5">
+                        <div class="bg-gradient-to-r from-green-500 to-emerald-400 h-2.5 rounded-full transition-all duration-1000 ease-out" style="width: ${stat.value}%"></div>
+                    </div>
+                `;
+          container.appendChild(div);
+        });
+
+        // Render Radar Chart
+        renderChart(data);
+
+        showSection("results");
+      }
+
+      function renderChart(data) {
+        const ctx = document.getElementById("radarChart").getContext("2d");
+
+        if (chartInstance) {
+          chartInstance.destroy();
+        }
+
+        // Chart.js config
+        Chart.defaults.color = "#9ca3af";
+        Chart.defaults.borderColor = "#374151";
+
+        chartInstance = new Chart(ctx, {
+          type: "radar",
+          data: {
+            labels: ["Porter", "Defensa", "Migcampista", "Davanter"],
+            datasets: [
+              {
+                label: "Aptitud",
+                data: [
+                  data.porter,
+                  data.defensa,
+                  data.migcampista,
+                  data.delanter,
+                ],
+                backgroundColor: "rgba(16, 185, 129, 0.4)", // green-500 with opacity
+                borderColor: "#10b981",
+                pointBackgroundColor: "#fff",
+                pointBorderColor: "#10b981",
+                borderWidth: 3,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              r: {
+                angleLines: { color: "#4b5563" }, // gray-700
+                grid: { color: "#374151" }, // gray-800
+                pointLabels: {
+                  font: { size: 14, weight: "bold" },
+                  color: "#d1d5db", // gray-300
+                },
+                ticks: {
+                  display: false,
+                  backdropColor: "transparent",
+                },
+                suggestedMin: 0,
+                suggestedMax: 100,
+              },
+            },
+            plugins: {
+              legend: { display: false },
+            },
+          },
+        });
+      }
+
+      function restartApp() {
+        showSection("intro");
+      }
+    </script>
+  </body>
+</html>
