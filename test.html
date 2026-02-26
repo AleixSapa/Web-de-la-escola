@@ -4,10 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Futbol Posició (Aleatori)</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
     <!-- Chart.js per al gràfic -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <!-- Font Inter -->
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap"
@@ -215,12 +216,25 @@
           </div>
         </div>
 
-        <div class="text-center">
+        <div class="text-center flex flex-col md:flex-row gap-4 justify-center items-center">
           <button
             onclick="restartApp()"
-            class="inline-flex items-center justify-center px-8 py-4 text-base font-bold text-gray-900 transition-all duration-200 bg-green-500 rounded-full hover:bg-green-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 focus:ring-offset-gray-900 shadow-lg hover:shadow-green-500/50 cursor-pointer"
+            class="inline-flex items-center justify-center px-8 py-4 text-base font-bold text-gray-900 transition-all duration-200 bg-gray-400 rounded-full hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 focus:ring-offset-gray-900 shadow-lg cursor-pointer"
           >
             Tornar a començar
+          </button>
+          <button
+            id="save-result-btn"
+            onclick="saveCurrentResult()"
+            class="inline-flex items-center justify-center px-8 py-4 text-base font-bold text-gray-900 transition-all duration-200 bg-green-500 rounded-full hover:bg-green-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 focus:ring-offset-gray-900 shadow-lg hover:shadow-green-500/50 cursor-pointer"
+          >
+            💾 Desar aquest resultat
+          </button>
+          <button
+            onclick="window.location.href='index.html'"
+            class="inline-flex items-center justify-center px-8 py-4 text-base font-bold text-white transition-all duration-200 bg-blue-600 rounded-full hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-600 focus:ring-offset-gray-900 shadow-lg cursor-pointer"
+          >
+            🏠 Tornar al Portal
           </button>
         </div>
       </div>
@@ -1289,7 +1303,10 @@
         }, 1500);
       }
 
+      let currentTestResult = null;
+
       function showResults(data) {
+        currentTestResult = data;
         const maxScore = Math.max(
           data.porter,
           data.defensa,
@@ -1302,8 +1319,13 @@
         else if (data.migcampista === maxScore) mainPosition = "Migcampista";
         else mainPosition = "Defensa";
 
+        currentTestResult.finalPosition = mainPosition;
+
         // Update DOM
         document.getElementById("result-position").textContent = mainPosition;
+        document.getElementById("save-result-btn").textContent = "💾 Desar aquest resultat";
+        document.getElementById("save-result-btn").disabled = false;
+        
         document.getElementById(
           "result-analysis"
         ).textContent = `"${data.analysis}"`;
@@ -1400,6 +1422,61 @@
             },
           },
         });
+      }
+
+      const SUPABASE_URL = "https://hocwnqqdyyinjrtczhdw.supabase.co";
+      const SUPABASE_KEY = "sb_publishable_X_TrrWex0GfBLIzbKFp1Cg_Xa97mziS";
+
+      async function saveCurrentResult() {
+        if (!currentTestResult) return;
+        const loggedUser = window.localStorage.getItem("activeUserPortal") || "Anonim";
+        const btn = document.getElementById("save-result-btn");
+        
+        btn.textContent = "⏳ Desant...";
+        btn.disabled = true;
+
+        try {
+          // Inicialitzem el client aquí per evitar conflictes si la llibreria encara es carrega
+          const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+          // Guardem a Supabase a la taula 'practice_results' adaptant els camps
+          // Encolem tota la informació al camp 'subject' per poder-la recuperar després
+          const encodedSubject = `TEST_FOOTBALL|${currentTestResult.finalPosition}|${currentTestResult.lateralitat}|P:${currentTestResult.porter},D:${currentTestResult.defensa},M:${currentTestResult.migcampista},A:${currentTestResult.delanter}`;
+
+          const { error } = await supabaseClient.from("practice_results").insert([
+            {
+              student_username: loggedUser,
+              subject: encodedSubject,
+              score: currentTestResult[currentTestResult.finalPosition.toLowerCase().replace('davanter','delanter')] || 0,
+              total_questions: 100 // Percentatge
+            }
+          ]);
+
+          if (error) throw error;
+
+          // També ho guardem a localStorage per compatibilitat amb la vista que ja hem creat
+          const saves = JSON.parse(window.localStorage.getItem("savedTestResults") || "[]");
+          saves.push({
+            user: loggedUser,
+            date: new Date().toISOString(),
+            position: currentTestResult.finalPosition,
+            lateralitat: currentTestResult.lateralitat,
+            stats: {
+              porter: currentTestResult.porter,
+              defensa: currentTestResult.defensa,
+              mig: currentTestResult.migcampista,
+              davanter: currentTestResult.delanter
+            }
+          });
+          window.localStorage.setItem("savedTestResults", JSON.stringify(saves));
+          
+          btn.textContent = "✅ Resultat desat!";
+        } catch (err) {
+          console.error("Error salvant a la DB:", err);
+          btn.textContent = "❌ Error al desar";
+          btn.disabled = false;
+          alert("S'ha produït un error al desar a la base de dades. Revisa la consola.");
+        }
       }
 
       function restartApp() {

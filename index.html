@@ -112,6 +112,7 @@
         calendarInterval: null,
         currentCalendarMonth: new Date().getMonth(),
         currentCalendarYear: new Date().getFullYear(),
+        isUpdatingChat: false, // Flag per sincronització
         // ESTAT DEL JOC DE PRÀCTICA
         practiceGame: {
           active: false,
@@ -159,6 +160,19 @@
             .select("*");
           if (convData) state.conversations = convData;
 
+          // Recuperar sessió guardada
+          const savedUsername = window.localStorage.getItem("activeUserPortal") || window.sessionStorage.getItem("activeUserPortal");
+          if (savedUsername && state.users.length > 0) {
+              const user = state.users.find(u => u.username === savedUsername);
+              if (user) {
+                  state.currentUser = user;
+                  if (user.role === "Administrador") state.view = "admin_dashboard";
+                  else state.view = "dashboard";
+                  window.startNotificationChecker();
+                  window.startChatRealtime();
+              }
+          }
+
           renderApp();
         } catch (err) {
           console.error("Error inicialitzant:", err);
@@ -193,6 +207,9 @@
             break;
           case "student_homework":
             renderStudentHomework(app);
+            break;
+          case "student_test_results":
+            renderStudentTestResults(app);
             break;
           case "student_practice_results":
             renderStudentPracticeResults(app);
@@ -233,6 +250,66 @@
              checkNotifications();
              state.calendarInterval = setInterval(checkNotifications, 10000);
          }
+      };
+
+      window.startChatRealtime = () => {
+        if (state.chatPoller) {
+          clearInterval(state.chatPoller);
+        }
+        if (state.chatSubscription) {
+          supabase.removeChannel(state.chatSubscription);
+        }
+        state.chatPoller = setInterval(async () => {
+          if (!state.currentUser || state.isUpdatingChat) return;
+          const { data, error } = await supabase.from('conversations').select('*');
+          if (data && !error) {
+             let hasNew = false;
+             let shouldScroll = false;
+             for (let updatedConv of data) {
+                if (!updatedConv.participants.includes(state.currentUser.username)) continue;
+                
+                const idx = state.conversations.findIndex(c => c.id === updatedConv.id);
+                if (idx !== -1) {
+                  const oldMsgs = state.conversations[idx].messages || [];
+                  const newMsgs = updatedConv.messages || [];
+                  
+                  if (newMsgs.length > oldMsgs.length) {
+                    hasNew = true;
+                    state.conversations[idx] = updatedConv;
+                    
+                    const latestMsg = newMsgs[newMsgs.length - 1];
+                     if (latestMsg.sender !== state.currentUser.username) {
+                       if (state.view !== "chat" || state.currentChatId !== updatedConv.id) {
+                         // Sense alerta intrusiva
+                       } else {
+                        shouldScroll = true;
+                      }
+                    } else {
+                      if (state.view === "chat" && state.currentChatId === updatedConv.id) {
+                        shouldScroll = true;
+                      }
+                    }
+                  } else if (newMsgs.length !== oldMsgs.length) {
+                      hasNew = true;
+                      state.conversations[idx] = updatedConv;
+                  }
+                } else {
+                  state.conversations.push(updatedConv);
+                  hasNew = true;
+                   if (updatedConv.creator && updatedConv.creator !== state.currentUser.username) {
+                     // Sense alerta intrusiva
+                   }
+                }
+             }
+             if (hasNew && state.view === "chat") {
+                renderApp();
+                if (shouldScroll) {
+                  const list = document.getElementById("messages-list");
+                  if (list) list.scrollTop = list.scrollHeight;
+                }
+             }
+          }
+        }, 2000);
       };
 
       // --- VISTA: LOGIN ---
@@ -277,9 +354,13 @@
 
             if (user) {
               state.currentUser = user;
+              // Recordar sessió altomàticament
+              window.localStorage.setItem("activeUserPortal", user.username);
+
               if (user.role === "Administrador") state.view = "admin_dashboard";
               else state.view = "dashboard";
               window.startNotificationChecker();
+              window.startChatRealtime();
               renderApp();
             } else {
               errorMsg.textContent = "Usuari o contrasenya incorrectes.";
@@ -306,7 +387,7 @@
                         <a href="test.html" class="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition">
                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                            </svg> Test
+                            </svg> Test Fútbol
                         </a>
 
                         <button onclick="window.navigateTo('chat')" class="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition">
@@ -335,6 +416,16 @@
                             <div>
                                 <h3 class="text-lg font-bold">Fer Pràctica</h3>
                                 <p class="text-indigo-100 text-sm mt-1">Mates i Català!</p>
+                            </div>
+                        </button>
+                        
+                        <button onclick="window.navigateTo('student_test_results')" class="bg-white p-6 rounded-2xl shadow-xl hover:scale-[1.02] transition-transform duration-300 group border border-gray-100 flex items-center gap-4 text-left">
+                            <div class="bg-purple-100 p-4 rounded-full group-hover:bg-purple-200 transition-colors">
+                                <div class="text-purple-700">⚽</div>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800">Resultats Test</h3>
+                                <p class="text-gray-500 text-sm">La teva posició ideal.</p>
                             </div>
                         </button>
 
@@ -668,10 +759,15 @@
         if (state.isLoadingData)
           return (container.innerHTML = `<div class="p-10 text-center">Carregant...</div>`);
 
+        const onlyPractice = (state.myPracticeResults || []).filter(res => {
+            const subj = res.subject.toUpperCase();
+            return !subj.startsWith('TEST_FOOTBALL') && !subj.startsWith('TEST FUTBOL');
+        });
+
         let listHtml =
-          state.myPracticeResults.length === 0
+          onlyPractice.length === 0
             ? `<div class="text-center py-10 text-gray-500">Encara no has fet cap exercici de pràctica. Toca a "Fer Pràctica" al menú principal per començar!</div>`
-            : state.myPracticeResults
+            : onlyPractice
                 .map((res) => {
                   const percentage = Math.round(
                     (res.score / res.total_questions) * 100
@@ -705,7 +801,7 @@
                 .join("");
 
         container.innerHTML = `
-            <div class="w-full max-w-4xl px-4 animate-fade-in py-6">
+            <div class="w-full h-full bg-gray-50 overflow-y-auto w-full max-w-4xl mx-auto px-4 animate-fade-in py-6">
                 <header class="flex items-center gap-4 mb-6 border-b pb-4 bg-white p-4 rounded-xl shadow-sm">
                     <button onclick="window.goBack()" class="text-gray-600">${Icons.Back}</button>
                     <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2"><span class="text-indigo-600">${Icons.Puzzle}</span> Notes de Pràctica</h2>
@@ -714,6 +810,108 @@
                     ${listHtml}
                 </div>
             </div>`;
+      }
+
+      window.deleteTestResult = async (id, isDb = false) => {
+          if(!confirm("Vols esborrar aquest resultat del test de posició?")) return;
+          
+          if (isDb) {
+              await supabase.from("practice_results").delete().eq("id", id);
+              await fetchPracticeResults();
+          } else {
+              let saves = JSON.parse(window.localStorage.getItem("savedTestResults") || "[]");
+              saves = saves.filter(s => s.date !== id);
+              window.localStorage.setItem("savedTestResults", JSON.stringify(saves));
+              renderApp();
+          }
+      };
+
+      function renderStudentTestResults(container) {
+          // 1. Dades de LocalStorage
+          const localSaves = JSON.parse(window.localStorage.getItem("savedTestResults") || "[]")
+              .filter(s => s.user === state.currentUser?.username)
+              .map(s => ({ ...s, isDb: false, id: s.date }));
+
+          // 2. Dades de la Base de Dades (Supabase)
+          const dbSaves = (state.myPracticeResults || [])
+              .filter(res => {
+                  const subj = res.subject.toUpperCase();
+                  return subj.startsWith('TEST_FOOTBALL') || subj.startsWith('TEST FUTBOL');
+              })
+              .map(res => {
+                  if (res.subject.includes('|')) {
+                      const parts = res.subject.split('|');
+                      // TEST_FOOTBALL | Pos | Lat | P:90,D:10,M:5,A:5
+                      const statsStr = parts[3] || "";
+                      const statsObj = {};
+                      statsStr.split(',').forEach(pair => {
+                          const [k, v] = pair.split(':');
+                          if (k === 'P') statsObj.porter = v;
+                          if (k === 'D') statsObj.defensa = v;
+                          if (k === 'M') statsObj.mig = v;
+                          if (k === 'A') statsObj.davanter = v;
+                      });
+
+                      return {
+                          id: res.id,
+                          isDb: true,
+                          date: res.created_at,
+                          position: parts[1] || "Desconegut",
+                          lateralitat: parts[2] || "Desconegut",
+                          stats: statsObj
+                      };
+                  } else {
+                      // Format antic: "Test Futbol: Porter"
+                      const pos = res.subject.split(':')[1]?.trim() || "Desconegut";
+                      return {
+                          id: res.id,
+                          isDb: true,
+                          date: res.created_at,
+                          position: pos,
+                          lateralitat: "N/A",
+                          stats: { porter: res.score, defensa: 0, mig: 0, davanter: 0 } // Dades parcials
+                      };
+                  }
+              });
+
+          const allResults = [...localSaves, ...dbSaves].sort((a,b) => new Date(b.date) - new Date(a.date));
+
+          let listHtml = allResults.length === 0
+              ? `<div class="text-center py-10 text-gray-500">Encara no has guardat cap resultat del Test de Posició. Ves al formulari i desa'ls!</div>`
+              : allResults.map((res) => {
+                  let dateLabel = new Date(res.date).toLocaleDateString("ca-ES", { hour: "2-digit", minute: "2-digit" });
+                  return `
+                  <div class="bg-white border rounded-xl p-5 shadow-sm mb-4 flex justify-between items-center hover:shadow-md transition">
+                      <div class="flex-grow">
+                          <div class="flex items-center gap-2 mb-1">
+                              <span class="bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded-full font-bold uppercase">Posició: ${res.position}</span>
+                              <span class="text-sm text-gray-500">${dateLabel} ${res.isDb ? '<span class="ml-1 opacity-60">(Núvol)</span>' : ''}</span>
+                          </div>
+                          <h3 class="text-sm text-gray-700 mt-2 font-bold flex gap-4 flex-wrap">
+                            <span class="text-green-600">Porter: ${res.stats.porter || 0}%</span>
+                            <span class="text-blue-600">Defensa: ${res.stats.defensa || 0}%</span>
+                            <span class="text-yellow-600">Migcamp: ${res.stats.mig || 0}%</span>
+                            <span class="text-red-600">Davantera: ${res.stats.davanter || 0}%</span>
+                          </h3>
+                      </div>
+                      <div class="text-right pl-4 border-l">
+                          <button onclick="window.deleteTestResult('${res.id}', ${res.isDb})" class="text-red-500 hover:text-red-700 transition" title="Esborrar resultat">
+                            ${Icons.Trash}
+                          </button>
+                      </div>
+                  </div>`;
+              }).join("");
+          
+          container.innerHTML = `
+              <div class="w-full h-full bg-gray-50 overflow-y-auto w-full max-w-4xl mx-auto px-4 animate-fade-in py-6">
+                  <header class="flex items-center gap-4 mb-6 border-b pb-4 bg-white p-4 rounded-xl shadow-sm">
+                      <button onclick="window.goBack()" class="text-gray-600 hover:bg-gray-100 p-2 rounded-full transition">${Icons.Back}</button>
+                      <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2"><span class="text-purple-600">⚽</span> Resultats Test Posició</h2>
+                  </header>
+                  <div class="space-y-4">
+                      ${listHtml}
+                  </div>
+              </div>`;
       }
 
       // --- VISTA: ADMIN DASHBOARD ---
@@ -2045,7 +2243,7 @@
         else if (view === "teacher_homework") fetchTeacherHomework();
         else if (view === "student_grades") fetchStudentGrades();
         else if (view === "student_homework") fetchStudentHomework();
-        else if (view === "student_practice_results") fetchPracticeResults();
+        else if (view === "student_practice_results" || view === "student_test_results") fetchPracticeResults();
         else if (view === "calendar") fetchCalendarData();
         else renderApp();
       };
@@ -2059,7 +2257,17 @@
       };
 
       window.logout = () => {
+        window.localStorage.removeItem("activeUserPortal");
+        window.sessionStorage.removeItem("activeUserPortal");
         if(state.calendarInterval) clearInterval(state.calendarInterval);
+        if(state.chatPoller) {
+          clearInterval(state.chatPoller);
+          state.chatPoller = null;
+        }
+        if(state.chatSubscription) {
+          supabase.removeChannel(state.chatSubscription);
+          state.chatSubscription = null;
+        }
         state.currentUser = null;
         state.view = "login";
         renderApp();
@@ -2076,14 +2284,40 @@
         if (chatIdx === -1) return;
         
         const chat = state.conversations[chatIdx];
-        chat.messages = chat.messages.filter(msg => msg.id !== messageId);
+        const messageToDelete = chat.messages.find(msg => String(msg.id) === String(messageId));
+        
+        if (!messageToDelete || messageToDelete.sender !== state.currentUser.username) {
+          alert("Només pots esborrar els teus propis missatges.");
+          return;
+        }
+
+        const originalMessages = [...chat.messages];
+        
+        // Optimistic update
+        chat.messages = chat.messages.filter(msg => String(msg.id) !== String(messageId));
+        state.isUpdatingChat = true; // Flag per evitar que el poller ens sobreescrigui
         
         renderApp();
         
-        await supabase
-          .from("conversations")
-          .update({ messages: chat.messages })
-          .eq("id", chatId);
+        try {
+          const { error } = await supabase
+            .from("conversations")
+            .update({ messages: chat.messages })
+            .eq("id", chatId);
+            
+          if (error) throw error;
+        } catch (err) {
+          console.error("Error esborrant missatge:", err);
+          alert("No s'ha pogut esborrar el missatge. Torna-ho a provar.");
+          // Revert if error
+          chat.messages = originalMessages;
+          renderApp();
+        } finally {
+          // Donem un marge perquè el poller vegi el canvi a la BD
+          setTimeout(() => {
+            state.isUpdatingChat = false;
+          }, 3000);
+        }
       };
 
       initApp();
