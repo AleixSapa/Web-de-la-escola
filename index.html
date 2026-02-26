@@ -128,7 +128,26 @@
           text: "",
           subject: "", // mates, catala, mixte
         },
+        telegramToken: "8727687777:AAHGL_xYY7_WD8EmjAWomW4QNGZwR8DNf4A", // Token del bot
+        telegramChatId: "5427387431", // ID de xat per defecte (serà autocorregit pel bot si cal)
       };
+
+      // --- UTILITATS: TELEGRAM ---
+      async function sendTelegramMessage(text) {
+          const url = `https://api.telegram.org/bot${state.telegramToken}/sendMessage`;
+          try {
+              await fetch(url, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                      chat_id: state.telegramChatId,
+                      text: text
+                  })
+              });
+          } catch (e) {
+              console.error("Error enviant a Telegram:", e);
+          }
+      }
 
       // --- ICONES SVG ---
       const Icons = {
@@ -174,9 +193,10 @@
                   if (user.role === "Administrador") state.view = "admin_dashboard";
                   else state.view = "dashboard";
                   window.startNotificationChecker();
-                  window.startChatRealtime();
-              }
-          }
+                   window.startChatRealtime();
+                   sendTelegramMessage(`🚀 Sessió recuperada: l'usuari @${user.username} (${user.name}) ha entrat a la web.`);
+               }
+           }
 
           renderApp();
         } catch (err) {
@@ -377,8 +397,9 @@
               if (user.role === "Administrador") state.view = "admin_dashboard";
               else state.view = "dashboard";
               window.startNotificationChecker();
-              window.startChatRealtime();
-              renderApp();
+               window.startChatRealtime();
+               sendTelegramMessage(`👤 Nou inici de sessió: l'usuari @${user.username} (${user.name}) ha entrat a la web.`);
+               renderApp();
             } else {
               errorMsg.textContent = "Usuari o contrasenya incorrectes.";
               errorMsg.classList.remove("hidden");
