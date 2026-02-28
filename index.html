@@ -423,6 +423,9 @@
         }</p>
                     </div>
                     <div class="flex gap-2">
+                        <button onclick="window.showChampions()" class="flex items-center gap-2 px-4 py-2 bg-yellow-400 text-yellow-900 border border-yellow-500 font-bold rounded-md hover:bg-yellow-500 transition">
+                            🏆 Els campions
+                        </button>
                         <a href="test.html" class="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition">
                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
@@ -922,6 +925,77 @@
               }
           } catch(e) { console.error("Error", e); }
           return isRecord;
+      };
+
+      window.showChampions = async () => {
+          const modal = document.getElementById("modal-container");
+          modal.innerHTML = `<div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md text-center"><p class="text-gray-500 font-bold animate-pulse">Carregant campions...</p></div>`;
+          modal.classList.remove("hidden");
+
+          try {
+              const { data: snakeData } = await supabase.from('game_scores')
+                  .select('student_username, score')
+                  .eq('game', 'SNAKE')
+                  .order('score', { ascending: false })
+                  .limit(3);
+
+              const { data: spaceData } = await supabase.from('game_scores')
+                  .select('student_username, score')
+                  .eq('game', 'SPACE')
+                  .order('score', { ascending: false })
+                  .limit(3);
+
+              const snakeHtml = (snakeData || []).map((p, i) => `
+                  <div class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
+                      <div class="flex items-center gap-2">
+                         <span class="text-xl font-bold w-6 text-center ${i===0?'text-yellow-500':i===1?'text-gray-400':i===2?'text-orange-400':''}">${i+1}</span>
+                         <span class="font-medium text-gray-800">@${p.student_username}</span>
+                      </div>
+                      <span class="font-mono font-bold text-green-600">${p.score}</span>
+                  </div>
+              `).join('') || '<p class="text-sm text-gray-400 italic py-2">Encara no hi ha rècords.</p>';
+
+              const spaceHtml = (spaceData || []).map((p, i) => `
+                  <div class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
+                      <div class="flex items-center gap-2">
+                         <span class="text-xl font-bold w-6 text-center ${i===0?'text-yellow-500':i===1?'text-gray-400':i===2?'text-orange-400':''}">${i+1}</span>
+                         <span class="font-medium text-gray-800">@${p.student_username}</span>
+                      </div>
+                      <span class="font-mono font-bold text-blue-600">${p.score}</span>
+                  </div>
+              `).join('') || '<p class="text-sm text-gray-400 italic py-2">Encara no hi ha rècords.</p>';
+
+              modal.innerHTML = `
+                  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in relative max-h-[90vh] flex flex-col">
+                      <header class="p-6 bg-gradient-to-r from-yellow-400 to-yellow-500 text-white flex justify-between items-center shrink-0">
+                          <h3 class="font-black text-2xl tracking-tight flex items-center gap-2">🏆 Els Campions</h3>
+                          <button onclick="window.closeModal()" class="text-yellow-900 bg-white/20 hover:bg-white/40 w-8 h-8 rounded-full transition font-bold leading-none">&times;</button>
+                      </header>
+                      <div class="p-6 overflow-y-auto space-y-6">
+                           <div>
+                               <h4 class="text-lg font-bold mb-3 flex items-center gap-2 text-green-700"><span class="text-2xl">🐍</span> Top Snake</h4>
+                               <div class="bg-gray-50 rounded-xl p-4 border border-gray-100 shadow-inner">
+                                   ${snakeHtml}
+                               </div>
+                           </div>
+                           <div>
+                               <h4 class="text-lg font-bold mb-3 flex items-center gap-2 text-blue-700"><span class="text-2xl">🚀</span> Top Space Invaders</h4>
+                               <div class="bg-gray-50 rounded-xl p-4 border border-gray-100 shadow-inner">
+                                   ${spaceHtml}
+                               </div>
+                           </div>
+                      </div>
+                  </div>
+              `;
+          } catch(e) {
+              console.error(e);
+              modal.innerHTML = `
+                  <div class="bg-white p-6 rounded-2xl w-full max-w-sm text-center">
+                       <p class="text-red-500 font-bold mb-4">Error carregant els campions.</p>
+                       <button onclick="window.closeModal()" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Tancar</button>
+                  </div>
+              `;
+          }
       };
 
       function renderGamesMenu(container) {
@@ -1769,6 +1843,9 @@
                     <header class="flex justify-between items-center mb-8">
                         <h1 class="text-3xl font-bold text-gray-800">Panell d'Administrador</h1>
                         <div class="flex gap-2">
+                            <button onclick="window.showChampions()" class="flex items-center gap-2 px-4 py-2 bg-yellow-400 text-yellow-900 border border-yellow-500 font-bold rounded-md hover:bg-yellow-500 transition">
+                                🏆 Els campions
+                            </button>
                             <button onclick="window.navigateTo('chat')" class="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition">
                                 ${Icons.Chat} Xat
                             </button>
