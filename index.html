@@ -102,6 +102,7 @@
         exams: [],
         selectedExam: null,
         examGrades: [],
+        gameScores: [],
         teacherHomeworks: [],
         newExamStudents: [],
         newHomeworkStudents: [],
@@ -811,7 +812,7 @@
 
         const onlyPractice = (state.myPracticeResults || []).filter(res => {
             const subj = res.subject.toUpperCase();
-            return !subj.startsWith('TEST_FOOTBALL') && !subj.startsWith('TEST FUTBOL');
+            return !subj.startsWith('TEST_FOOTBALL') && !subj.startsWith('TEST FUTBOL') && !subj.startsWith('GAME_');
         });
 
         let listHtml =
@@ -876,7 +877,61 @@
           }
       };
 
+      async function fetchGameScores() {
+        state.isLoadingData = true;
+        renderApp();
+
+        try {
+          const { data } = await supabase
+            .from("game_scores")
+            .select("*")
+            .eq("student_username", state.currentUser.username);
+
+          state.gameScores = data || [];
+        } catch (e) {
+          console.error("Error carregant puntuacions", e);
+        }
+
+        state.isLoadingData = false;
+        renderApp();
+      }
+
+      window.saveGameRecord = async (game, score) => {
+          const un = state.currentUser?.username;
+          if(!un) return false;
+          let isRecord = false;
+          try {
+              const { data } = await supabase.from('game_scores')
+                  .select('id, score')
+                  .eq('student_username', un)
+                  .eq('game', game)
+                  .maybeSingle();
+                  
+              if(data) {
+                  if(score > data.score) {
+                      await supabase.from('game_scores').update({score: score}).eq('id', data.id);
+                      isRecord = true;
+                  }
+              } else {
+                  await supabase.from('game_scores').insert({
+                      student_username: un,
+                      game: game,
+                      score: score
+                  });
+                  isRecord = true;
+              }
+          } catch(e) { console.error("Error", e); }
+          return isRecord;
+      };
+
       function renderGamesMenu(container) {
+        if (state.isLoadingData) return (container.innerHTML = `<div class="p-10 text-center animate-pulse text-gray-400">Carregant jocs i puntuacions...</div>`);
+        
+        const snakeRes = (state.gameScores || []).filter(r => r.game === 'SNAKE');
+        const spaceRes = (state.gameScores || []).filter(r => r.game === 'SPACE');
+        const bestSnake = snakeRes.length > 0 ? Math.max(...snakeRes.map(r => r.score)) : 0;
+        const bestSpace = spaceRes.length > 0 ? Math.max(...spaceRes.map(r => r.score)) : 0;
+
         container.innerHTML = `
           <div class="w-full h-full bg-gray-50 overflow-y-auto p-4 md:p-8 animate-fade-in">
               <header class="max-w-4xl mx-auto flex items-center gap-4 mb-10">
@@ -889,12 +944,14 @@
                       <div class="text-6xl mb-4">🐍</div>
                       <h3 class="text-2xl font-bold mb-2">Snake</h3>
                       <p class="text-green-100">El joc de la serp clàssic. Menja pomes i creix!</p>
+                      <div class="mt-4 bg-green-800 rounded-full px-4 py-1 text-sm font-bold">Rècord: ${bestSnake}</div>
                   </button>
 
                   <button onclick="window.navigateTo('student_game_space')" class="bg-gradient-to-br from-blue-500 to-indigo-700 p-8 rounded-3xl shadow-lg hover:shadow-xl hover:-translate-y-1 transition duration-300 flex flex-col items-center text-center text-white">
                       <div class="text-6xl mb-4">🚀</div>
                       <h3 class="text-2xl font-bold mb-2">Space Invaders</h3>
                       <p class="text-blue-100">Defensa la Terra dels invasors de l'espai!</p>
+                      <div class="mt-4 bg-blue-800 rounded-full px-4 py-1 text-sm font-bold">Rècord: ${bestSpace}</div>
                   </button>
               </div>
           </div>
@@ -906,8 +963,13 @@
           <div class="w-full h-full bg-gray-900 flex flex-col items-center p-4">
             <header class="w-full max-w-2xl flex justify-between items-center mb-4 text-white">
                 <button onclick="window.navigateTo('student_games_menu')" class="bg-gray-800 p-2 rounded-full hover:bg-gray-700">${Icons.Back}</button>
-                <h2 class="text-xl font-bold">Snake 🐍</h2>
-                <div class="text-xl font-mono" id="snake-score">Punts: 0</div>
+                <div class="flex flex-col items-center">
+                  <h2 class="text-xl font-bold">Snake 🐍</h2>
+                </div>
+                <div class="flex flex-col items-end">
+                  <div class="text-xl font-mono" id="snake-score">Punts: 0</div>
+                  <div class="text-lg font-mono text-red-400 font-bold" id="snake-timer">3:00</div>
+                </div>
             </header>
             <canvas id="snakeCanvas" width="400" height="400" class="bg-black border-4 border-green-900 rounded-lg shadow-2xl"></canvas>
             <div class="mt-6 grid grid-cols-3 gap-2 md:hidden">
@@ -925,14 +987,26 @@
         const canvas = document.getElementById('snakeCanvas');
         const ctx = canvas.getContext('2d');
         const scoreElement = document.getElementById('snake-score');
+        const timerElement = document.getElementById('snake-timer');
         const box = 20;
         let snake = [{ x: 9 * box, y: 10 * box }];
         let food = {
-          x: Math.floor(Math.random() * 19 + 1) * box,
-          y: Math.floor(Math.random() * 19 + 1) * box
+          x: Math.floor(Math.random() * 20) * box,
+          y: Math.floor(Math.random() * 20) * box
         };
         let score = 0;
         let d;
+        let timeRemaining = 180; // 3 minuts fixats
+        let gameActive = true;
+        let initialTimeLimit = 180;
+        
+        updateTimerDisplay();
+
+        function updateTimerDisplay() {
+          let m = Math.floor(timeRemaining / 60);
+          let s = timeRemaining % 60;
+          timerElement.innerText = `${m}:${s.toString().padStart(2, '0')}`;
+        }
 
         document.addEventListener("keydown", direction);
         window.snakeControl = (dir) => { 
@@ -981,6 +1055,8 @@
           ctx.arc(food.x + box / 2, food.y + box / 2, box / 2 - 2, 0, Math.PI * 2);
           ctx.fill();
 
+          if (!d) return;
+
           let snakeX = snake[0].x;
           let snakeY = snake[0].y;
 
@@ -999,17 +1075,22 @@
 
           // Xoc contra un mateix
           if (collision(newHead, snake)) {
+            gameActive = false;
             clearInterval(game);
-            alert(`Joc acabat! Puntuació: ${score}`);
-            window.navigateTo('student_games_menu');
+            clearInterval(timerInterval);
+            
+            window.saveGameRecord('SNAKE', score).then(isRecord => {
+                alert(`Joc acabat! Puntuació: ${score}${isRecord ? ' (Nou Rècord!)' : ''}`);
+                window.navigateTo('student_games_menu');
+            });
           }
 
           if (snakeX == food.x && snakeY == food.y) {
             score++;
             scoreElement.innerHTML = `Punts: ${score}`;
             food = {
-              x: Math.floor(Math.random() * 19 + 1) * box,
-              y: Math.floor(Math.random() * 19 + 1) * box
+              x: Math.floor(Math.random() * 20) * box,
+              y: Math.floor(Math.random() * 20) * box
             };
           } else {
             snake.pop();
@@ -1019,8 +1100,28 @@
         }
 
         let game = setInterval(drawSnake, 100);
-        // Guardar l'interval per netejar-lo si es canvia de vista
+        
+        let timerInterval = setInterval(() => {
+            if (!d || !gameActive || initialTimeLimit === 0) return;
+            
+            timeRemaining--;
+            updateTimerDisplay();
+            
+            if (timeRemaining <= 0) {
+               gameActive = false;
+               clearInterval(game);
+               clearInterval(timerInterval);
+               
+               window.saveGameRecord('SNAKE', score).then(isRecord => {
+                   alert(`Temps esgotat! Puntuació: ${score}${isRecord ? ' (Nou Rècord!)' : ''}`);
+                   window.navigateTo('student_games_menu');
+               });
+            }
+        }, 1000);
+
+        // Guardar els intervals per netejar-los si es canvia de vista o hi ha problemes
         state.currentGameInterval = game;
+        state.currentSnakeTimer = timerInterval;
       }
 
       function renderSpaceInvaders(container) {
@@ -1266,8 +1367,10 @@
 
         function gameOver(msg) {
           clearInterval(game);
-          alert(`${msg} - Score: ${score}`);
-          window.navigateTo('student_games_menu');
+          window.saveGameRecord('SPACE', score).then(isRecord => {
+              alert(`${msg} - Score: ${score}${isRecord ? ' (Nou Rècord!)' : ''}`);
+              window.navigateTo('student_games_menu');
+          });
         }
 
         function drawPlayer(x, y) {
@@ -1786,7 +1889,7 @@
       };
 
       function renderDatabaseManager(container) {
-        const tables = ["users", "conversations", "exams", "grades", "homeworks", "practice_results", "calendar_proposals", "events", "birthdays"];
+        const tables = ["users", "conversations", "exams", "grades", "homeworks", "practice_results", "game_scores", "calendar_proposals", "events", "birthdays"];
         
         container.innerHTML = `
           <div class="animate-fade-in w-full h-full bg-slate-50 flex flex-col p-4 md:p-6 overflow-hidden">
@@ -2942,12 +3045,17 @@
           clearInterval(state.currentGameInterval);
           state.currentGameInterval = null;
         }
+        if (state.currentSnakeTimer) {
+          clearInterval(state.currentSnakeTimer);
+          state.currentSnakeTimer = null;
+        }
         state.view = view;
         if (view === "teacher_exams") fetchTeacherExams();
         else if (view === "teacher_homework") fetchTeacherHomework();
         else if (view === "student_grades") fetchStudentGrades();
         else if (view === "student_homework") fetchStudentHomework();
         else if (view === "student_practice_results" || view === "student_test_results") fetchPracticeResults();
+        else if (view === "student_games_menu") fetchGameScores();
         else if (view === "calendar") fetchCalendarData();
         else if (view === "admin_database_manager") fetchAdminTables();
         else renderApp();
@@ -2957,6 +3065,10 @@
         if (state.currentGameInterval) {
           clearInterval(state.currentGameInterval);
           state.currentGameInterval = null;
+        }
+        if (state.currentSnakeTimer) {
+          clearInterval(state.currentSnakeTimer);
+          state.currentSnakeTimer = null;
         }
         state.view =
           state.currentUser.role === "Administrador"
