@@ -131,6 +131,7 @@
         },
         telegramToken: "8727687777:AAHGL_xYY7_WD8EmjAWomW4QNGZwR8DNf4A", // Token del bot
         telegramChatId: "7019520308", // ID de xat corregit pel bot
+        reportedErrors: [],
       };
 
       // --- UTILITATS: TELEGRAM ---
@@ -169,6 +170,7 @@
         Calendar: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5m-9-6h.008v.008H12v-.008ZM12 15h.008v.008H12V15Zm0 2.25h.008v.008H12v-.008ZM9.75 15h.008v.008H9.75V15Zm0 2.25h.008v.008H9.75v-.008ZM7.5 15h.008v.008H7.5V15Zm0 2.25h.008v.008H7.5v-.008Zm6.75-4.5h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008V15Zm0 2.25h.008v.008h-.008v-.008Zm2.25-4.5h.008v.008H16.5v-.008Zm0 2.25h.008v.008H16.5V15Z" /></svg>`,
         Cake: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8.25v-1.5m0 1.5c-1.355 0-2.697.056-4.024.166C6.845 8.51 6 9.473 6 10.608v2.513m6-4.871c1.355 0 2.697.056 4.024.166C17.155 8.51 18 9.473 18 10.608v2.513M15 8.25v-1.5m-6 1.5v-1.5m12 9.75-1.5.75a3.354 3.354 0 0 1-3 0 3.354 3.354 0 0 1-3 0 3.354 3.354 0 0 1-3 0 3.354 3.354 0 0 1-3 0L3 16.5m15-3.379a48.474 48.474 0 0 0-6-.371c-2.032 0-4.034.125-6 .371m12 0c.39.049.777.107 1.16.173 1.107.18 1.84 1.132 1.84 2.235v1.513c0 1.282-1.036 2.302-2.316 2.302H4.476c-1.28 0-2.316-1.02-2.316-2.302v-1.513c0-1.103.733-2.056 1.84-2.235a48.455 48.455 0 0 1 1.16-.173" /></svg>`,
         Flag: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0 2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a48.524 48.524 0 0 1-.005-10.499l-3.11.732a9 9 0 0 1-6.085-.711l-.108-.054a9 9 0 0 0-6.208-.682L3 4.5M3 15V4.5" /></svg>`,
+        Bug: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9V7m0 2v2m0-2h2m-2 0H10m4 4V13m0 0h2m-2 0h-2m-2 4v-2m0 0h2m-2 0H8m12-3.75v3.75a2.25 2.25 0 0 1-2.25 2.25H6.25A2.25 2.25 0 0 1 4 17.25V5.25A2.25 2.25 0 0 1 6.25 3h11.5A2.25 2.25 0 0 1 20 5.25v3.75Zm-4.5 0v3.75m-3-3.75v3.75m-3-3.75v3.75" /></svg>`,
       };
 
       // --- FUNCIONS PRINCIPALS ---
@@ -260,6 +262,9 @@
             break;
           case "admin_database_manager":
             renderDatabaseManager(app);
+            break;
+          case "error_reporting":
+            renderErrorReporting(app);
             break;
           case "calendar":
             renderCalendar(app);
@@ -435,6 +440,10 @@
                         <button onclick="window.navigateTo('chat')" class="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition">
                             ${Icons.Chat} Xat
                         </button>
+                        ${(user.role === "Betatester") ? `
+                        <button onclick="window.navigateTo('error_reporting')" class="flex items-center gap-2 px-4 py-2 bg-red-800 text-white rounded-md hover:bg-red-900 transition">
+                            ${Icons.Bug} Errors
+                        </button>` : ''}
                         <button onclick="window.navigateTo('calendar')" class="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition">
                             ${Icons.Calendar} Calendari
                         </button>
@@ -446,8 +455,9 @@
             `;
 
         let content = "";
+        const effectiveRole = (user.role === "Betatester") ? user.subject : user.role;
 
-        if (user.role === "Alumne") {
+        if (effectiveRole === "Alumne") {
           content = `
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 p-4 max-w-7xl mx-auto">
                         
@@ -514,7 +524,7 @@
                         </button>
                     </div>
                 `;
-        } else if (user.role === "Professor") {
+        } else if (effectiveRole === "Professor") {
           content = `
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 max-w-4xl mx-auto">
                         <button onclick="window.navigateTo('teacher_exams')" class="bg-white p-6 rounded-2xl shadow-xl hover:scale-[1.02] transition-transform duration-300 group border border-gray-100 flex items-center gap-4 text-left">
@@ -1677,8 +1687,8 @@
           name,
           password: pass,
           role,
-          subject,
-          points: role === "Alumne" ? 0 : null,
+          subject: role === "Betatester" ? document.getElementById("adm-tester-type").value : subject,
+          points: (role === "Alumne" || (role === "Betatester" && document.getElementById("adm-tester-type").value === "Alumne")) ? 0 : null,
           hasUnlockedAudio: false,
           hasUnlockedCamera: false,
           hasUnlockedIA: false,
@@ -1873,13 +1883,24 @@
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700">Rol</label>
-                                        <select id="adm-role" class="w-full p-2 border rounded" onchange="document.getElementById('subj-field').classList.toggle('hidden', this.value !== 'Professor')">
+                                        <select id="adm-role" class="w-full p-2 border rounded" onchange="
+                                            document.getElementById('subj-field').classList.toggle('hidden', this.value !== 'Professor');
+                                            document.getElementById('tester-type-field').classList.toggle('hidden', this.value !== 'Betatester');
+                                        ">
                                             <option value="Alumne">Alumne</option>
                                             <option value="Professor">Professor</option>
                                             <option value="Administrador">Administrador</option>
+                                            <option value="Betatester">Betatester</option>
                                         </select>
                                     </div>
                                     <div id="subj-field" class="hidden"><label class="block text-sm font-medium text-gray-700">Assignatura</label><input id="adm-subject" type="text" class="w-full p-2 border rounded" placeholder="Ex: Mates"></div>
+                                    <div id="tester-type-field" class="hidden">
+                                        <label class="block text-sm font-medium text-gray-700">Tipus de Betatester</label>
+                                        <select id="adm-tester-type" class="w-full p-2 border rounded">
+                                            <option value="Alumne">Alumne</option>
+                                            <option value="Professor">Professor</option>
+                                        </select>
+                                    </div>
                                 </div>
                                 <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 font-bold">Crear Usuari</button>
                             </form>
@@ -2118,6 +2139,100 @@
             (u) => u !== username
           );
         else state.newExamStudents.push(username);
+      };
+
+      function renderErrorReporting(container) {
+        const pages = [
+          "Inici / Login",
+          "Dashboard (Alumne/Prof/Admin)",
+          "Xat",
+          "Calendari",
+          "Gestió d'Usuaris (Admin)",
+          "Gestió d'Exàmens (Prof)",
+          "Gestió de Deures (Prof)",
+          "Pràctica (Alumne)",
+          "Notes (Alumne)",
+          "Deures (Alumne)",
+          "Jocs de Recreo",
+          "Altres"
+        ];
+
+        container.innerHTML = `
+          <div class="animate-fade-in w-full h-full bg-red-50 p-6 overflow-y-auto">
+            <header class="max-w-4xl mx-auto flex items-center gap-4 mb-8">
+              <button onclick="window.goBack()" class="text-gray-600 bg-white p-2 rounded-full shadow hover:bg-gray-100 transition">${Icons.Back}</button>
+              <h1 class="text-3xl font-bold text-red-900 flex items-center gap-2">${Icons.Bug} Informe d'Errors (Betatester)</h1>
+            </header>
+
+            <div class="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-xl border-t-8 border-red-600">
+              <p class="text-gray-600 mb-6 font-medium">Com a betatester, la teva ajuda és fonamental per millorar el Portal Escolar. Si trobes algun error, si us plau, informa'n detalladament.</p>
+              
+              <form id="error-form" onsubmit="window.submitError(event)" class="space-y-6">
+                <div>
+                  <label class="block text-sm font-bold text-gray-700 mb-1">Pàgina on has trobat l'error</label>
+                  <select id="error-page" class="w-full p-3 border-2 border-red-100 rounded-xl focus:border-red-500 outline-none transition" required>
+                    <option value="" disabled selected>Selecciona una pàgina...</option>
+                    ${pages.map(p => `<option value="${p}">${p}</option>`).join("")}
+                  </select>
+                </div>
+
+                <div>
+                  <label class="block text-sm font-bold text-gray-700 mb-1">Descripció detallada de l'error</label>
+                  <textarea id="error-desc" rows="5" class="w-full p-3 border-2 border-red-100 rounded-xl focus:border-red-500 outline-none transition" placeholder="Explica què ha passat i com podem reproduir l'error..." required></textarea>
+                </div>
+
+                <div class="bg-red-50 p-4 rounded-xl text-red-800 text-sm">
+                  ⚠️ Els informes seran enviats directament als administradors per Telegram.
+                </div>
+
+                <button type="submit" class="w-full bg-red-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-red-700 transition shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center gap-2">
+                  ${Icons.Bug.replace('w-6 h-6', 'w-5 h-5')} Enviar Informe
+                </button>
+              </form>
+            </div>
+
+            <div class="max-w-2xl mx-auto mt-12">
+              <h2 class="text-xl font-bold text-red-900 mb-4">Els teus informes recents</h2>
+              <div id="recent-errors" class="space-y-4">
+                ${state.reportedErrors.length === 0 
+                  ? '<p class="text-gray-400 italic text-center py-8">Encara no has enviat cap informe.</p>' 
+                  : state.reportedErrors.filter(e => e.user === state.currentUser.username).map(e => `
+                    <div class="bg-white border-l-4 border-red-500 p-4 rounded shadow-sm">
+                      <div class="flex justify-between items-start mb-2">
+                        <span class="font-bold text-red-800 text-sm px-2 py-0.5 bg-red-50 rounded">${e.page}</span>
+                        <span class="text-xs text-gray-400">${e.date}</span>
+                      </div>
+                      <p class="text-gray-700 text-sm">${e.description}</p>
+                    </div>
+                  `).join("")}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      window.submitError = async (e) => {
+        e.preventDefault();
+        const page = document.getElementById("error-page").value;
+        const description = document.getElementById("error-desc").value;
+        const user = state.currentUser;
+
+        const errorReport = {
+          user: user.username,
+          name: user.name,
+          page,
+          description,
+          date: new Date().toLocaleString()
+        };
+
+        state.reportedErrors.unshift(errorReport);
+        
+        const telegramMsg = `⚠️ **NOU ERROR INFORMAT** ⚠️\n\n👤 **Usuari:** ${user.name} (@${user.username})\n📄 **Pàgina:** ${page}\n❌ **Error:** ${description}\n\n📅 ${errorReport.date}`;
+        
+        await sendTelegramMessage(telegramMsg);
+        
+        alert("Gràcies! L'informe d'error s'ha enviat correctament.");
+        renderApp();
       };
 
       function renderExamManager(container) {
