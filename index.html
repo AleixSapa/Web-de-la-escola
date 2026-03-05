@@ -129,14 +129,15 @@
           text: "",
           subject: "", // mates, catala, mixte
         },
-        telegramToken: "8727687777:AAHGL_xYY7_WD8EmjAWomW4QNGZwR8DNf4A", // Token del bot
+        telegramToken: "8727687777:AAHGL_xYY7_WD8EmjAWomW4QNGZwR8DNf4A", // Token del bot (Logins)
+        telegramErrorToken: "8697167092:AAEyo5cVQUGiktwWh0517X3KY3p0qM5q0EE", // Bot d'errors
         telegramChatId: "7019520308", // ID de xat corregit pel bot
         reportedErrors: [],
       };
 
       // --- UTILITATS: TELEGRAM ---
-      async function sendTelegramMessage(text) {
-          const url = `https://api.telegram.org/bot${state.telegramToken}/sendMessage`;
+      async function sendTelegramMessage(text, token = state.telegramToken) {
+          const url = `https://api.telegram.org/bot${token}/sendMessage`;
           try {
               await fetch(url, {
                   method: "POST",
@@ -2229,7 +2230,7 @@
         
         const telegramMsg = `⚠️ **NOU ERROR INFORMAT** ⚠️\n\n👤 **Usuari:** ${user.name} (@${user.username})\n📄 **Pàgina:** ${page}\n❌ **Error:** ${description}\n\n📅 ${errorReport.date}`;
         
-        await sendTelegramMessage(telegramMsg);
+        await sendTelegramMessage(telegramMsg, state.telegramErrorToken);
         
         alert("Gràcies! L'informe d'error s'ha enviat correctament.");
         renderApp();
