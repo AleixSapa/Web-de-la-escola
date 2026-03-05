@@ -1954,23 +1954,34 @@
                                 </thead>
                                 <tbody class="text-sm">
                                     ${state.reportedErrors.length === 0 ? '<tr><td colspan="5" class="p-4 text-center text-gray-400 italic">No hi ha errors reportats.</td></tr>' : 
-                                        state.reportedErrors.map(e => `
-                                        <tr class="border-t hover:bg-gray-50">
-                                            <td class="p-3 font-medium">${e.user_name || e.name} (@${e.user_username || e.user})</td>
-                                            <td class="p-3"><span class="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-xs font-bold">${e.page}</span></td>
-                                            <td class="p-3 max-w-xs truncate" title="${e.description}">${e.description}</td>
-                                            <td class="p-3 text-center">
-                                                <span class="px-2 py-1 rounded text-xs font-bold ${e.status === 'resolved' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}">
-                                                    ${e.status === 'resolved' ? 'Solucionat' : 'Pendent'}
-                                                </span>
-                                            </td>
-                                            <td class="p-3">
-                                                <button onclick="window.updateErrorStatus(${e.id}, '${e.status === 'resolved' ? 'pending' : 'resolved'}')" class="text-blue-600 hover:underline font-bold">
-                                                    ${e.status === 'resolved' ? 'Reobrir' : 'Solucionar'}
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    `).join("")}
+                                        state.reportedErrors.map(e => {
+                                            let statusClass = "bg-yellow-100 text-yellow-700";
+                                            let statusLabel = "Pendent";
+                                            if (e.status === 'solucionant') {
+                                                statusClass = "bg-blue-100 text-blue-700";
+                                                statusLabel = "Solucionant";
+                                            } else if (e.status === 'solucionat') {
+                                                statusClass = "bg-green-100 text-green-700";
+                                                statusLabel = "Solucionat";
+                                            }
+
+                                            return `
+                                            <tr class="border-t hover:bg-gray-50">
+                                                <td class="p-3 font-medium">${e.user_name || e.name} (@${e.user_username || e.user})</td>
+                                                <td class="p-3"><span class="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-xs font-bold">${e.page}</span></td>
+                                                <td class="p-3 max-w-xs truncate" title="${e.description}">${e.description}</td>
+                                                <td class="p-3 text-center">
+                                                    <span class="px-2 py-1 rounded text-[10px] font-bold ${statusClass}">
+                                                        ${statusLabel}
+                                                    </span>
+                                                </td>
+                                                <td class="p-3 text-xs flex gap-1 items-center flex-wrap">
+                                                    <button onclick="window.updateErrorStatus(${e.id}, 'pendent')" class="px-1.5 py-0.5 rounded border border-yellow-500 text-yellow-700 hover:bg-yellow-50 font-bold transition">P</button>
+                                                    <button onclick="window.updateErrorStatus(${e.id}, 'solucionant')" class="px-1.5 py-0.5 rounded border border-blue-500 text-blue-700 hover:bg-blue-50 font-bold transition">S...</button>
+                                                    <button onclick="window.updateErrorStatus(${e.id}, 'solucionat')" class="px-1.5 py-0.5 rounded border border-green-500 text-green-700 hover:bg-green-50 font-bold transition">OK</button>
+                                                </td>
+                                            </tr>`;
+                                        }).join("")}
                                 </tbody>
                             </table>
                         </div>
@@ -2243,10 +2254,13 @@
                   ? '<p class="text-gray-400 italic text-center py-8">Encara no has enviat cap informe.</p>' 
                   : state.reportedErrors.filter(e => e.user === state.currentUser.username).map(e => `
                     <div class="bg-white border-l-4 border-red-500 p-4 rounded shadow-sm">
-                      <div class="flex justify-between items-start mb-2">
-                        <span class="font-bold text-red-800 text-sm px-2 py-0.5 bg-red-50 rounded">${e.page}</span>
-                        <span class="text-xs text-gray-400">${e.date}</span>
-                      </div>
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="font-bold text-red-800 text-sm px-2 py-0.5 bg-red-50 rounded">${e.page}</span>
+                            <div class="flex flex-col items-end">
+                                <span class="text-xs text-gray-400">${e.date || ''}</span>
+                                <span class="text-[10px] font-black uppercase mt-1 ${e.status === 'solucionat' ? 'text-green-600' : e.status === 'solucionant' ? 'text-blue-600' : 'text-yellow-600'}">${e.status || 'pendent'}</span>
+                            </div>
+                        </div>
                       <p class="text-gray-700 text-sm">${e.description}</p>
                     </div>
                   `).join("")}
@@ -2268,7 +2282,7 @@
             user_name: user.name,
             page: page,
             description: description,
-            status: "pending"
+            status: "pendent"
           }]).select();
 
           if (!error && data) {
