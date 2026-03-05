@@ -437,9 +437,12 @@
           user.subject ? `(${user.subject})` : ""
         }</p>
                     </div>
-                    <div class="flex gap-2">
-                        <button onclick="window.showChampions()" class="flex items-center gap-2 px-4 py-2 bg-yellow-400 text-yellow-900 border border-yellow-500 font-bold rounded-md hover:bg-yellow-500 transition">
-                            🏆 Els campions
+                    <div class="flex gap-2 flex-wrap justify-end">
+                        <button onclick="window.showChampions()" class="flex items-center gap-2 px-4 py-2 bg-yellow-400 text-yellow-900 border border-yellow-500 font-bold rounded-md hover:bg-yellow-500 transition text-sm">
+                            🏆 Campions
+                        </button>
+                        <button onclick="window.showTopGlobal()" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white font-bold rounded-md hover:bg-indigo-700 transition text-sm shadow-sm">
+                            🏅 Top Global
                         </button>
                         <a href="test.html" class="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition">
                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
@@ -946,6 +949,83 @@
           } catch(e) { console.error("Error", e); }
           return isRecord;
       };
+
+       window.showTopGlobal = async () => {
+          const modal = document.getElementById("modal-container");
+          modal.innerHTML = `<div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md text-center"><p class="text-gray-500 font-bold animate-pulse">Calculant rànquing global...</p></div>`;
+          modal.classList.remove("hidden");
+
+          try {
+              const { data: allScores } = await supabase.from('game_scores').select('*');
+              if(!allScores) throw new Error("No hi ha dades");
+
+              // Agrupar per jocs
+              const games = ['SNAKE', 'SPACE', 'PACMAN'];
+              const pointsPerUser = {};
+
+              games.forEach(gameName => {
+                  const gameResults = allScores
+                      .filter(s => s.game === gameName)
+                      .sort((a,b) => b.score - a.score)
+                      .slice(0, 3);
+                  
+                  gameResults.forEach((res, index) => {
+                      const user = res.student_username;
+                      const points = index === 0 ? 3 : (index === 1 ? 2 : 1); // 1r: 3pt, 2n: 2pt, 3r: 1pt
+                      pointsPerUser[user] = (pointsPerUser[user] || 0) + points;
+                  });
+              });
+
+              const sortedGlobal = Object.entries(pointsPerUser)
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 3);
+
+              const globalHtml = sortedGlobal.map(([user, points], i) => `
+                  <div class="flex justify-between items-center py-4 border-b border-gray-100 last:border-0">
+                      <div class="flex items-center gap-4">
+                         <div class="relative">
+                            <span class="text-3xl font-black w-10 h-10 flex items-center justify-center rounded-full ${i===0?'bg-yellow-100 text-yellow-600':i===1?'bg-gray-100 text-gray-600':i===2?'bg-orange-100 text-orange-600':''}">${i+1}</span>
+                            ${i === 0 ? '<span class="absolute -top-2 -right-2 text-xl">👑</span>' : ''}
+                         </div>
+                         <div class="flex flex-col">
+                            <span class="font-bold text-gray-900 text-lg">@${user}</span>
+                            <span class="text-xs text-gray-500 font-medium">Mestre de Jocs</span>
+                         </div>
+                      </div>
+                      <div class="text-right">
+                        <span class="block font-black text-2xl text-indigo-600">${points}</span>
+                        <span class="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Punts de Rànquing</span>
+                      </div>
+                  </div>
+              `).join('') || '<p class="text-sm text-gray-400 italic py-4">Encara no hi ha prou competició per al rànquing global.</p>';
+
+              modal.innerHTML = `
+                  <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in relative flex flex-col border border-indigo-100">
+                      <header class="p-8 bg-indigo-600 text-white flex justify-between items-center shrink-0">
+                          <div>
+                            <h3 class="font-black text-2xl tracking-tight flex items-center gap-2">🏅 Top Global</h3>
+                            <p class="text-indigo-200 text-xs font-bold mt-1 uppercase tracking-widest">Els millors de l'aula</p>
+                          </div>
+                          <button onclick="window.closeModal()" class="text-white bg-white/20 hover:bg-white/40 w-10 h-10 rounded-full transition font-bold leading-none flex items-center justify-center text-2xl">&times;</button>
+                      </header>
+                      <div class="p-8 overflow-y-auto">
+                           <div class="mb-6 bg-slate-50 p-4 rounded-xl text-xs text-slate-500 border border-slate-100">
+                             Punts: <strong>1r lloc (3pt)</strong>, <strong>2n lloc (2pt)</strong> i <strong>3r lloc (1pt)</strong> en cada joc.
+                           </div>
+                           <div class="space-y-2">
+                               ${globalHtml}
+                           </div>
+                      </div>
+                      <footer class="p-6 bg-slate-50 border-t flex justify-center">
+                         <button onclick="window.closeModal()" class="px-8 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-100 transition shadow-sm">Tornar al Dashboard</button>
+                      </footer>
+                  </div>
+              `;
+          } catch(e) {
+              console.error(e);
+              modal.innerHTML = `<div class="bg-white p-10 rounded-2xl w-full max-w-sm text-center shadow-2xl"><p class="text-red-500 font-bold">Ho sentim, no hem pogut carregar el rànquing global.</p></div>`;
+          }
+       };
 
       window.showChampions = async () => {
           const modal = document.getElementById("modal-container");
@@ -2206,9 +2286,12 @@
                 <div class="animate-fade-in w-full h-full bg-gray-100 p-6 overflow-y-auto">
                     <header class="flex justify-between items-center mb-8">
                         <h1 class="text-3xl font-bold text-gray-800">Panell d'Administrador</h1>
-                        <div class="flex gap-2">
-                            <button onclick="window.showChampions()" class="flex items-center gap-2 px-4 py-2 bg-yellow-400 text-yellow-900 border border-yellow-500 font-bold rounded-md hover:bg-yellow-500 transition">
-                                🏆 Els campions
+                        <div class="flex gap-2 flex-wrap">
+                            <button onclick="window.showChampions()" class="flex items-center gap-2 px-4 py-2 bg-yellow-400 text-yellow-900 border border-yellow-500 font-bold rounded-md hover:bg-yellow-500 transition text-sm">
+                                🏆 Campions
+                            </button>
+                            <button onclick="window.showTopGlobal()" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white font-bold rounded-md hover:bg-indigo-700 transition text-sm shadow-sm">
+                                🏅 Top Global
                             </button>
                             <button onclick="window.navigateTo('chat')" class="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition">
                                 ${Icons.Chat} Xat
