@@ -264,6 +264,9 @@
           case "student_game_space":
             renderSpaceInvaders(app);
             break;
+          case "student_game_pacman":
+            renderPacmanGame(app);
+            break;
           case "admin_dashboard":
             renderAdminDashboard(app);
             break;
@@ -962,6 +965,12 @@
                   .order('score', { ascending: false })
                   .limit(3);
 
+              const { data: pacmanData } = await supabase.from('game_scores')
+                  .select('student_username, score')
+                  .eq('game', 'PACMAN')
+                  .order('score', { ascending: false })
+                  .limit(3);
+
               const snakeHtml = (snakeData || []).map((p, i) => `
                   <div class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
                       <div class="flex items-center gap-2">
@@ -982,6 +991,16 @@
                   </div>
               `).join('') || '<p class="text-sm text-gray-400 italic py-2">Encara no hi ha rècords.</p>';
 
+              const pacmanHtml = (pacmanData || []).map((p, i) => `
+                  <div class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
+                      <div class="flex items-center gap-2">
+                         <span class="text-xl font-bold w-6 text-center ${i===0?'text-yellow-500':i===1?'text-gray-400':i===2?'text-orange-400':''}">${i+1}</span>
+                         <span class="font-medium text-gray-800">@${p.student_username}</span>
+                      </div>
+                      <span class="font-mono font-bold text-yellow-600">${p.score}</span>
+                  </div>
+              `).join('') || '<p class="text-sm text-gray-400 italic py-2">Encara no hi ha rècords.</p>';
+
               modal.innerHTML = `
                   <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in relative max-h-[90vh] flex flex-col">
                       <header class="p-6 bg-gradient-to-r from-yellow-400 to-yellow-500 text-white flex justify-between items-center shrink-0">
@@ -995,12 +1014,18 @@
                                    ${snakeHtml}
                                </div>
                            </div>
-                           <div>
-                               <h4 class="text-lg font-bold mb-3 flex items-center gap-2 text-blue-700"><span class="text-2xl">🚀</span> Top Space Invaders</h4>
-                               <div class="bg-gray-50 rounded-xl p-4 border border-gray-100 shadow-inner">
-                                   ${spaceHtml}
-                               </div>
-                           </div>
+                            <div>
+                                <h4 class="text-lg font-bold mb-3 flex items-center gap-2 text-blue-700"><span class="text-2xl">🚀</span> Top Space Invaders</h4>
+                                <div class="bg-gray-50 rounded-xl p-4 border border-gray-100 shadow-inner">
+                                    ${spaceHtml}
+                                </div>
+                            </div>
+                            <div>
+                                <h4 class="text-lg font-bold mb-3 flex items-center gap-2 text-yellow-700"><span class="text-2xl">🟡</span> Top Pac-Man</h4>
+                                <div class="bg-gray-50 rounded-xl p-4 border border-gray-100 shadow-inner">
+                                    ${pacmanHtml}
+                                </div>
+                            </div>
                       </div>
                   </div>
               `;
@@ -1020,8 +1045,10 @@
         
         const snakeRes = (state.gameScores || []).filter(r => r.game === 'SNAKE');
         const spaceRes = (state.gameScores || []).filter(r => r.game === 'SPACE');
+        const pacmanRes = (state.gameScores || []).filter(r => r.game === 'PACMAN');
         const bestSnake = snakeRes.length > 0 ? Math.max(...snakeRes.map(r => r.score)) : 0;
         const bestSpace = spaceRes.length > 0 ? Math.max(...spaceRes.map(r => r.score)) : 0;
+        const bestPacman = pacmanRes.length > 0 ? Math.max(...pacmanRes.map(r => r.score)) : 0;
 
         container.innerHTML = `
           <div class="w-full h-full bg-gray-50 overflow-y-auto p-4 md:p-8 animate-fade-in">
@@ -1043,6 +1070,13 @@
                       <h3 class="text-2xl font-bold mb-2">Space Invaders</h3>
                       <p class="text-blue-100">Defensa la Terra dels invasors de l'espai!</p>
                       <div class="mt-4 bg-blue-800 rounded-full px-4 py-1 text-sm font-bold">Rècord: ${bestSpace}</div>
+                  </button>
+
+                  <button onclick="window.navigateTo('student_game_pacman')" class="md:col-span-2 bg-gradient-to-br from-yellow-400 to-yellow-600 p-8 rounded-3xl shadow-lg hover:shadow-xl hover:-translate-y-1 transition duration-300 flex flex-col items-center text-center text-white">
+                      <div class="text-6xl mb-4">🟡</div>
+                      <h3 class="text-2xl font-bold mb-2">Pac-Man</h3>
+                      <p class="text-yellow-100">Menja tots els punts i escapa dels fantasmes!</p>
+                      <div class="mt-4 bg-yellow-800 rounded-full px-4 py-1 text-sm font-bold">Rècord: ${bestPacman}</div>
                   </button>
               </div>
           </div>
@@ -1590,6 +1624,319 @@
 
         let game = setInterval(loop, 1000/60);
         state.currentGameInterval = game;
+      }
+
+      function renderPacmanGame(container) {
+        container.innerHTML = `
+          <div class="w-full h-full bg-black flex flex-col items-center p-4">
+            <header class="w-full max-w-md flex justify-between items-center mb-4 text-white">
+                <button onclick="window.navigateTo('student_games_menu')" class="bg-gray-800 p-2 rounded-full hover:bg-gray-700">${Icons.Back}</button>
+                <div class="flex flex-col items-center">
+                  <h2 class="text-xl font-bold flex items-center gap-2">Pac-Man <span class="text-yellow-400">🟡</span></h2>
+                </div>
+                <div class="flex flex-col items-end">
+                  <div class="text-xl font-mono text-yellow-400" id="pac-score">0000</div>
+                  <div class="flex gap-1" id="pac-lives"></div>
+                </div>
+            </header>
+            <div class="relative">
+              <canvas id="pacmanCanvas" width="380" height="420" class="bg-black border-2 border-blue-900 rounded shadow-2xl"></canvas>
+              <div id="pac-start-msg" class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-70 text-white font-bold text-2xl animate-pulse cursor-pointer">
+                PREM PER COMENÇAR
+              </div>
+            </div>
+            <div class="mt-6 grid grid-cols-3 gap-2 md:hidden">
+              <div></div>
+              <button onclick="window.pacControl('UP')" class="bg-gray-800 w-16 h-16 rounded-xl text-white text-2xl">▲</button>
+              <div></div>
+              <button onclick="window.pacControl('LEFT')" class="bg-gray-800 w-16 h-16 rounded-xl text-white text-2xl">◀</button>
+              <button onclick="window.pacControl('DOWN')" class="bg-gray-800 w-16 h-16 rounded-xl text-white text-2xl">▼</button>
+              <button onclick="window.pacControl('RIGHT')" class="bg-gray-800 w-16 h-16 rounded-xl text-white text-2xl">▶</button>
+            </div>
+          </div>
+        `;
+
+        const canvas = document.getElementById('pacmanCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('pac-score');
+        const livesElement = document.getElementById('pac-lives');
+        const startMsg = document.getElementById('pac-start-msg');
+
+        const SIZE = 20;
+        const ROWS = 21;
+        const COLS = 19;
+        
+        // 0: dot, 1: wall, 2: empty, 3: power, 4: pacman start, 5: ghost start
+        const map = [
+          [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+          [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1],
+          [1,3,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,3,1],
+          [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+          [1,0,1,1,0,1,0,1,1,1,1,1,0,1,0,1,1,0,1],
+          [1,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,1],
+          [1,1,1,1,0,1,1,1,2,1,2,1,1,1,0,1,1,1,1],
+          [2,2,2,1,0,1,2,2,2,2,2,2,2,1,0,1,2,2,2],
+          [1,1,1,1,0,1,2,1,1,5,1,1,2,1,0,1,1,1,1],
+          [2,2,2,2,0,2,2,1,2,2,2,1,2,2,0,2,2,2,2],
+          [1,1,1,1,0,1,2,1,1,1,1,1,2,1,0,1,1,1,1],
+          [2,2,2,1,0,1,2,2,2,2,2,2,2,1,0,1,2,2,2],
+          [1,1,1,1,0,1,2,1,1,1,1,1,2,1,0,1,1,1,1],
+          [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1],
+          [1,0,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,0,1],
+          [1,3,0,1,0,0,0,0,0,4,0,0,0,0,0,1,0,3,1],
+          [1,1,0,1,0,1,0,1,1,1,1,1,0,1,0,1,0,1,1],
+          [1,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,1],
+          [1,0,1,1,1,1,1,1,0,1,0,1,1,1,1,1,1,0,1],
+          [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+          [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ];
+
+        let level = JSON.parse(JSON.stringify(map));
+        let score = 0;
+        let lives = 3;
+        let gameActive = false;
+        let powerMode = 0;
+        
+        let pacman = { x: 9, y: 15, dir: 0, nextDir: 0, anim: 0 };
+        let ghosts = [
+          { x: 9, y: 8, color: '#ef4444', dir: 1, speed: 0.1, mode: 'normal' },
+          { x: 9, y: 8, color: '#fb923c', dir: 3, speed: 0.08, mode: 'normal' },
+          { x: 9, y: 8, color: '#f472b6', dir: 2, speed: 0.09, mode: 'normal' }
+        ];
+
+        function resetPositions() {
+          pacman.x = 9; pacman.y = 15;
+          pacman.dir = 0; pacman.nextDir = 0;
+          ghosts.forEach(g => { g.x = 9; g.y = 8; g.mode = 'normal'; });
+        }
+
+        window.pacControl = (d) => {
+          if(d === 'UP') pacman.nextDir = 1;
+          if(d === 'DOWN') pacman.nextDir = 2;
+          if(d === 'LEFT') pacman.nextDir = 3;
+          if(d === 'RIGHT') pacman.nextDir = 4;
+        };
+
+        window.addEventListener('keydown', e => {
+          if(e.key === 'ArrowUp') pacman.nextDir = 1;
+          if(e.key === 'ArrowDown') pacman.nextDir = 2;
+          if(e.key === 'ArrowLeft') pacman.nextDir = 3;
+          if(e.key === 'ArrowRight') pacman.nextDir = 4;
+        });
+
+        startMsg.onclick = () => {
+          if(!gameActive) {
+            gameActive = true;
+            startMsg.classList.add('hidden');
+          }
+        };
+
+        function canMove(x, y, dir) {
+          let nx = x, ny = y;
+          if(dir === 1) ny -= 0.2;
+          else if(dir === 2) ny += 0.2;
+          else if(dir === 3) nx -= 0.2;
+          else if(dir === 4) nx += 0.2;
+          
+          const r = 0.4;
+          const checks = [
+            {cx: nx - r, cy: ny - r}, {cx: nx + r, cy: ny - r},
+            {cx: nx - r, cy: ny + r}, {cx: nx + r, cy: ny + r}
+          ];
+          
+          for(let p of checks) {
+            let row = Math.floor(p.cy + 0.5);
+            let col = Math.floor(p.cx + 0.5);
+            if(row < 0 || row >= ROWS || col < 0 || col >= COLS) continue;
+            if(level[row][col] === 1) return false;
+          }
+          return true;
+        }
+
+        function update() {
+          if(!gameActive) return;
+
+          // Pacman movement
+          if(pacman.nextDir !== 0 && canMove(pacman.x, pacman.y, pacman.nextDir)) {
+             if(Math.abs(pacman.x - Math.round(pacman.x)) < 0.1 && Math.abs(pacman.y - Math.round(pacman.y)) < 0.1) {
+                pacman.dir = pacman.nextDir;
+             }
+          }
+
+          if(canMove(pacman.x, pacman.y, pacman.dir)) {
+            if(pacman.dir === 1) pacman.y -= 0.15;
+            if(pacman.dir === 2) pacman.y += 0.15;
+            if(pacman.dir === 3) pacman.x -= 0.15;
+            if(pacman.dir === 4) pacman.x += 0.15;
+          }
+
+          // Tunnel
+          if(pacman.x < -0.5) pacman.x = COLS - 0.5;
+          if(pacman.x > COLS - 0.5) pacman.x = -0.5;
+
+          // Eat dots
+          let r = Math.round(pacman.y);
+          let c = Math.round(pacman.x);
+          if(r >= 0 && r < ROWS && c >= 0 && c < COLS) {
+            if(level[r][c] === 0) {
+              level[r][c] = 2;
+              score += 10;
+              checkWin();
+            } else if(level[r][c] === 3) {
+              level[r][c] = 2;
+              score += 50;
+              powerMode = 600; // 10 seconds at 60fps
+              ghosts.forEach(g => g.mode = 'scared');
+              checkWin();
+            }
+          }
+          scoreElement.innerText = score.toString().padStart(4, '0');
+
+          if(powerMode > 0) {
+            powerMode--;
+            if(powerMode === 0) ghosts.forEach(g => g.mode = 'normal');
+          }
+
+          // Ghosts movement
+          ghosts.forEach(g => {
+            if(g.mode === 'scared' && Math.random() < 0.5) return; // slow down scared ghosts
+
+            let possible = [];
+            if(canMove(g.x, g.y, 1)) possible.push(1);
+            if(canMove(g.x, g.y, 2)) possible.push(2);
+            if(canMove(g.x, g.y, 3)) possible.push(3);
+            if(canMove(g.x, g.y, 4)) possible.push(4);
+            
+            // Avoid reversing unless necessary
+            let opposite = g.dir === 1 ? 2 : g.dir === 2 ? 1 : g.dir === 3 ? 4 : 3;
+            if(possible.length > 1) possible = possible.filter(p => p !== opposite);
+
+            if(!canMove(g.x, g.y, g.dir) || Math.random() < 0.05) {
+              g.dir = possible[Math.floor(Math.random() * possible.length)];
+            }
+
+            let speed = g.mode === 'scared' ? g.speed/2 : g.speed;
+            if(g.dir === 1) g.y -= speed;
+            if(g.dir === 2) g.y += speed;
+            if(g.dir === 3) g.x -= speed;
+            if(g.dir === 4) g.x += speed;
+
+            if(g.x < -0.5) g.x = COLS - 0.5;
+            if(g.x > COLS - 0.5) g.x = -0.5;
+
+            // Collision
+            let dist = Math.sqrt((pacman.x - g.x)**2 + (pacman.y - g.y)**2);
+            if(dist < 0.6) {
+              if(g.mode === 'scared') {
+                g.x = 9; g.y = 8; g.mode = 'normal';
+                score += 200;
+              } else {
+                die();
+              }
+            }
+          });
+        }
+
+        function checkWin() {
+          let dots = 0;
+          for(let row of level) dots += row.filter(cell => cell === 0 || cell === 3).length;
+          if(dots === 0) {
+            gameActive = false;
+            window.saveGameRecord('PACMAN', score).then(isRecord => {
+              alert(`NIVELL COMPLETAT! Puntuació: ${score}${isRecord ? ' (Rècord!)' : ''}`);
+              window.navigateTo('student_games_menu');
+            });
+          }
+        }
+
+        function die() {
+          lives--;
+          gameActive = false;
+          if(lives <= 0) {
+            window.saveGameRecord('PACMAN', score).then(isRecord => {
+              alert(`S'han acabat les vides! Puntuació final: ${score}${isRecord ? ' (Rècord!)' : ''}`);
+              window.navigateTo('student_games_menu');
+            });
+          } else {
+            updateLivesDisplay();
+            resetPositions();
+            startMsg.innerText = "CAPTURA! PREM PER CONTINUAR";
+            startMsg.classList.remove('hidden');
+          }
+        }
+
+        function updateLivesDisplay() {
+           livesElement.innerHTML = `<span class="text-yellow-400">🟡</span>`.repeat(lives);
+        }
+        updateLivesDisplay();
+
+        function draw() {
+          ctx.fillStyle = "black";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          // Draw Maze
+          for(let r=0; r<ROWS; r++) {
+            for(let c=0; c<COLS; c++) {
+              let x = c * SIZE;
+              let y = r * SIZE;
+              if(level[r][c] === 1) {
+                ctx.fillStyle = "#1e3a8a";
+                ctx.fillRect(x+2, y+2, SIZE-4, SIZE-4);
+              } else if(level[r][c] === 0) {
+                ctx.fillStyle = "#fde047";
+                ctx.beginPath();
+                ctx.arc(x + SIZE/2, y + SIZE/2, 2, 0, Math.PI*2);
+                ctx.fill();
+              } else if(level[r][c] === 3) {
+                ctx.fillStyle = "#fde047";
+                ctx.beginPath();
+                ctx.arc(x + SIZE/2, y + SIZE/2, 5, 0, Math.PI*2);
+                ctx.fill();
+              }
+            }
+          }
+
+          // Draw Pacman
+          ctx.fillStyle = "#eab308";
+          ctx.beginPath();
+          let px = pacman.x * SIZE + SIZE/2;
+          let py = pacman.y * SIZE + SIZE/2;
+          let open = Math.sin(Date.now() / 100) * 0.2 + 0.2;
+          let startAngle = 0, endAngle = Math.PI*2;
+          
+          if(pacman.dir === 1) { startAngle = 1.5*Math.PI + open; endAngle = 1.5*Math.PI - open; }
+          else if(pacman.dir === 2) { startAngle = 0.5*Math.PI + open; endAngle = 0.5*Math.PI - open; }
+          else if(pacman.dir === 3) { startAngle = Math.PI + open; endAngle = Math.PI - open; }
+          else if(pacman.dir === 4 || pacman.dir === 0) { startAngle = open; endAngle = -open; }
+          
+          ctx.moveTo(px, py);
+          ctx.arc(px, py, SIZE/2 - 2, startAngle, endAngle);
+          ctx.fill();
+
+          // Draw Ghosts
+          ghosts.forEach(g => {
+            ctx.fillStyle = g.mode === 'scared' ? '#3b82f6' : g.color;
+            let gx = g.x * SIZE + SIZE/2;
+            let gy = g.y * SIZE + SIZE/2;
+            ctx.beginPath();
+            ctx.arc(gx, gy - 2, SIZE/2 - 2, Math.PI, 0);
+            ctx.lineTo(gx + SIZE/2 - 2, gy + SIZE/2 - 2);
+            ctx.lineTo(gx - SIZE/2 + 2, gy + SIZE/2 - 2);
+            ctx.fill();
+            // Eyes
+            ctx.fillStyle = "white";
+            ctx.beginPath(); ctx.arc(gx-3, gy-3, 2, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(gx+3, gy-3, 2, 0, Math.PI*2); ctx.fill();
+          });
+        }
+
+        function loop() {
+          update();
+          draw();
+        }
+
+        let gameInterval = setInterval(loop, 1000/60);
+        state.currentGameInterval = gameInterval;
       }
 
       function renderStudentTestResults(container) {
