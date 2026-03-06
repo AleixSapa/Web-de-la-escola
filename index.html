@@ -181,7 +181,7 @@
           const { data: usersData } = await supabase.from("users").select("*");
           if (usersData) {
             state.users = usersData;
-            state.students = usersData.filter((u) => u.role === "Alumne");
+            state.students = usersData.filter((u) => u.role === "Alumne" || (u.role === "Betatester" && u.subject === "Alumne"));
           }
 
           const { data: convData } = await supabase.from("conversations").select("*");
