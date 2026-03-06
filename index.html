@@ -133,6 +133,7 @@
         telegramErrorToken: "8697167092:AAEyo5cVQUGiktwWh0517X3KY3p0qM5q0EE", // Bot d'errors
         telegramChatId: "7019520308", // ID de xat corregit pel bot
         reportedErrors: [],
+        userLogins: [], // Registre d'entrades
         adminSelectedUser: null,
       };
 
@@ -153,6 +154,34 @@
           }
       }
 
+      async function logLoginToDatabase(user) {
+        try {
+           const entry = {
+             username: user.username,
+             name: user.name,
+             role: user.role
+           };
+           await supabase.from("user_logins").insert([entry]);
+           // Actualitzem l'estat local: tornem a carregar per tenir les dates de Supabase
+           const { data } = await supabase.from("user_logins").select("*").order("created_at", { ascending: false }).limit(100);
+           if (data) state.userLogins = data;
+         } catch (e) {
+           console.error("Error guardant log a DB:", e);
+         }
+       }
+
+       window.clearLoginLogs = async () => {
+         if (!confirm("Vols buidar tot el registre d'entrades? Aquesta acció no es pot desfer.")) return;
+         const { error } = await supabase.from("user_logins").delete().neq("id", 0); // Truc per esborrar-ho tot si id és enter
+         if (!error) {
+           state.userLogins = [];
+           renderApp();
+           alert("Historial buidat.");
+         } else {
+           alert("Error buidant historial: " + error.message);
+         }
+       };
+
       // --- ICONES SVG ---
       const Icons = {
         User: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.108a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.642Z" /></svg>`,
@@ -168,7 +197,7 @@
         Trash: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>`,
         UserPlus: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM4 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" /></svg>`,
         Group: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-2.438c.157-.145.295-.303.43-1.528A4.375 4.375 0 0 0 16.25 8.25V6.75a4.5 4.5 0 1 0-9 0v1.5c0 .351.041.693.12 1.023l.05.16a.75.75 0 0 1-.97.854l-.066-.027a4.375 4.375 0 0 0-3.483 1.575 4.375 4.375 0 0 0-1.575 3.483c-.012.247-.027.495-.027.747v1.875a9.375 9.375 0 0 0 3.375 7.25Z" /></svg>`,
-        Puzzle: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8"><path stroke-linecap="round" stroke-linejoin="round" d="M14.25 6.087c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.036-.86-1.875-1.92-1.875s-1.92.84-1.92 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959v0a1.5 1.5 0 0 1-1.5 1.5H9.45c-.355 0-.676-.186-.959-.401A1.647 1.647 0 0 0 7.488 6c-1.036 0-1.875.86-1.875 1.92 0 .369.128.713.349 1.003.215.283.401.604.401.959v.933c0 .828-.672 1.5-1.5 1.5h0c-.355 0-.676.186-.959.401-.29.221-.634.349-1.003.349-1.036 0-1.875.86-1.875 1.92s.84 1.92 1.875 1.92c.369 0 .713-.128 1.003-.349.283-.215.604-.401.959-.401h0c.828 0 1.5.672 1.5 1.5v.933c0 .355-.186.676-.401.959-.221.29-.349.634-.349 1.003 0 1.036.86 1.875 1.92 1.875s1.92-.84 1.92-1.875c0-.369-.128-.713-.349-1.003-.215-.283-.401-.604-.401-.959v0a1.5 1.5 0 0 1 1.5-1.5h.963c.355 0 .676.186.959.401.29.221.634.349 1.003.349 1.036 0 1.875-.86 1.875-1.92s-.84-1.92-1.875-1.92c-.369 0-.713.128-1.003.349-.283.215-.604.401-.959.401h0a1.5 1.5 0 0 1-1.5-1.5v-.933c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.036-.86-1.875-1.92-1.875s-1.92.84-1.92 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959v0a1.5 1.5 0 0 1-1.5 1.5H14.55c.355 0 .676-.186.959-.401.29-.221.634-.349 1.003-.349 1.036 0 1.875.86 1.875 1.92s-.84 1.92-1.875 1.92c-.369 0-.713-.128-1.003-.349-.283-.215-.604-.401-.959-.401h0c-.828 0-1.5-.672-1.5-1.5v-1.05z" /></svg>`,
+        Puzzle: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8"><path stroke-linecap="round" stroke-linejoin="round" d="M14.25 6.087c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.036-.86-1.875-1.92-1.875s-1.92.84-1.92 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959v0a1.5 1.5 0 0 1-1.5 1.5H9.45c-.355 0-.676-.186-.959-.401A1.647 1.647 0 0 0 7.488 6c-1.036 0-1.875.86-1.875 1.92 0 .369.128.713.349 1.003.215.283.401.604.401.959v.933c0 .828-.672 1.5-1.5 1.5h0c-.355 0-.676.186-.959.401-.29.221-.634.349-1.003.349-1.036 0-1.875.86-1.875 1.92s.84 1.92 1.875 1.92c.369 0 .713-.128 1.003-.349.283-.215.604-.401.959-.401h0c.828 0 1.5.672 1.5 1.5v.933c0 .355-.186.676-.401.959-.221.29-.349.634-.349 1.003 0 1.036.86 1.875 1.92 1.875s1.92-.84 1.92-1.875c0-.369-.128-.713-.349-1.003-.215-.283-.401-.604-.401-.959v0a1.5 1.5 0 0 1 1.5-1.5h.963c.355 0 .676.186.959.401.29.221.634.349 1.003.349 1.036 0 1.875-.86 1.875-1.92s-.84-1.92-1.875-1.92c-.369 0-.713.128-1.003-.349-.283-.215-.604-.401-.959-.401h0a1.5 1.5 0 0 1-1.5-1.5v-.933c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.036-.86-1.875-1.92-1.875s-1.92.84-1.92 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959v0a1.5 1.5 0 0 1-1.5 1.5H14.55c.355 0 .676-.186.959-.401.29-.221.634-.349 1.003-.349 1.036 0 1.875.86 1.875 1.92s-.84 1.92-1.875 1.92c-.369 0-.713.128-1.003-.349-.283-.215-.604-.401-.959-.401h0c-.828 0-1.5-.672-1.5-1.5v-1.05z" /></svg>`,
         Calendar: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5m-9-6h.008v.008H12v-.008ZM12 15h.008v.008H12V15Zm0 2.25h.008v.008H12v-.008ZM9.75 15h.008v.008H9.75V15Zm0 2.25h.008v.008H9.75v-.008ZM7.5 15h.008v.008H7.5V15Zm0 2.25h.008v.008H7.5v-.008Zm6.75-4.5h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008V15Zm0 2.25h.008v.008h-.008v-.008Zm2.25-4.5h.008v.008H16.5v-.008Zm0 2.25h.008v.008H16.5V15Z" /></svg>`,
         Cake: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8.25v-1.5m0 1.5c-1.355 0-2.697.056-4.024.166C6.845 8.51 6 9.473 6 10.608v2.513m6-4.871c1.355 0 2.697.056 4.024.166C17.155 8.51 18 9.473 18 10.608v2.513M15 8.25v-1.5m-6 1.5v-1.5m12 9.75-1.5.75a3.354 3.354 0 0 1-3 0 3.354 3.354 0 0 1-3 0 3.354 3.354 0 0 1-3 0 3.354 3.354 0 0 1-3 0L3 16.5m15-3.379a48.474 48.474 0 0 0-6-.371c-2.032 0-4.034.125-6 .371m12 0c.39.049.777.107 1.16.173 1.107.18 1.84 1.132 1.84 2.235v1.513c0 1.282-1.036 2.302-2.316 2.302H4.476c-1.28 0-2.316-1.02-2.316-2.302v-1.513c0-1.103.733-2.056 1.84-2.235a48.455 48.455 0 0 1 1.16-.173" /></svg>`,
         Flag: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0 2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a48.524 48.524 0 0 1-.005-10.499l-3.11.732a9 9 0 0 1-6.085-.711l-.108-.054a9 9 0 0 0-6.208-.682L3 4.5M3 15V4.5" /></svg>`,
@@ -187,12 +216,12 @@
           const { data: convData } = await supabase.from("conversations").select("*");
           if (convData) state.conversations = convData;
 
-          // Recuperar errors de la base de dades
+          // Recuperar registre d'entrades de Supabase
           try {
-            const { data: errorsData } = await supabase.from("reported_errors").select("*").order("created_at", { ascending: false });
-            if (errorsData) state.reportedErrors = errorsData;
-          } catch (e) { 
-            console.warn("Taula reported_errors no trobada o buida"); 
+            const { data: loginsData } = await supabase.from("user_logins").select("*").order("created_at", { ascending: false }).limit(100);
+            if (loginsData) state.userLogins = loginsData;
+          } catch (e) {
+            console.warn("Taula user_logins no trobada");
           }
 
           // Recuperar sessió guardada
@@ -206,6 +235,7 @@
                   window.startNotificationChecker();
                    window.startChatRealtime();
                    sendTelegramMessage(`🚀 Sessió recuperada: l'usuari @${user.username} (${user.name}) ha entrat a la web.`);
+                   logLoginToDatabase(user);
                }
            }
 
@@ -416,6 +446,7 @@
               window.startNotificationChecker();
                window.startChatRealtime();
                sendTelegramMessage(`👤 Nou inici de sessió: l'usuari @${user.username} (${user.name}) ha entrat a la web.`);
+               logLoginToDatabase(user);
                renderApp();
             } else {
               errorMsg.textContent = "Usuari o contrasenya incorrectes.";
@@ -2410,11 +2441,46 @@
                             <button onclick="window.navigateTo('admin_database_manager')" class="flex items-center gap-2 px-4 py-2 bg-blue-800 text-white rounded-md hover:bg-blue-900 transition font-bold">
                                 🛠️ Base de Dades
                             </button>
-                            <button onclick="window.logout()" class="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm font-bold">${
-                              Icons.Logout
-                            } Sortir</button>
+                             <button onclick="window.logout()" class="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm font-bold">${
+                               Icons.Logout
+                             } Sortir</button>
                         </div>
                     </header>
+
+                    <!-- REGISTRE D'ENTRADES (LOGINS) -->
+                    <div class="mb-8 bg-white p-6 rounded-2xl shadow-lg border-l-4 border-indigo-600">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-bold flex items-center gap-2 text-indigo-800">${Icons.Clock} Registre d'Entrades Recents (Supabase)</h2>
+                            <button onclick="window.clearLoginLogs()" class="text-xs bg-red-50 text-red-600 px-3 py-1 rounded hover:bg-red-100 font-bold border border-red-200">Buidar Historial</button>
+                        </div>
+                        <div class="overflow-x-auto max-h-60 overflow-y-auto">
+                            <table class="w-full text-left">
+                                <thead class="bg-gray-50 text-xs uppercase font-bold text-gray-500 sticky top-0">
+                                    <tr>
+                                        <th class="p-3 text-center">Data / Hora</th>
+                                        <th class="p-3">Usuari</th>
+                                        <th class="p-3">Nom</th>
+                                        <th class="p-3">Rol</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="text-xs">
+                                    ${state.userLogins.length === 0 ? '<tr><td colspan="4" class="p-4 text-center text-gray-400 italic">No hi ha registres d\'entrada a la base de dades.</td></tr>' : 
+                                        state.userLogins.map(l => {
+                                            const date = new Date(l.created_at || l.timestamp);
+                                            const timeStr = date.toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                                            const dateStr = date.toLocaleDateString('ca-ES', { day: '2-digit', month: '2-digit' });
+                                            return `
+                                            <tr class="border-t hover:bg-gray-50">
+                                                <td class="p-3 text-center text-gray-500 font-mono">${dateStr} ${timeStr}</td>
+                                                <td class="p-3 font-bold text-indigo-700">@${l.username}</td>
+                                                <td class="p-3">${l.name}</td>
+                                                <td class="p-3"><span class="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 font-bold text-[10px]">${l.role}</span></td>
+                                            </tr>`;
+                                        }).join("")}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
 
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                         <div class="bg-white p-6 rounded-2xl shadow-lg border-l-4 border-blue-600">
@@ -2643,7 +2709,7 @@
       };
 
       function renderDatabaseManager(container) {
-        const tables = ["users", "conversations", "exams", "grades", "homeworks", "practice_results", "game_scores", "calendar_proposals", "events", "birthdays", "reported_errors"];
+        const tables = ["users", "conversations", "exams", "grades", "homeworks", "practice_results", "game_scores", "calendar_proposals", "events", "birthdays", "reported_errors", "user_logins"];
         
         container.innerHTML = `
           <div class="animate-fade-in w-full h-full bg-slate-50 flex flex-col p-4 md:p-6 overflow-hidden">
