@@ -448,9 +448,9 @@
                         <button onclick="window.navigateTo('chat')" class="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition">
                             ${Icons.Chat} Xat
                         </button>
-                        ${(user.role === "Betatester") ? `
+                        ${(state.currentUser.role !== "Administrador") ? `
                         <button onclick="window.navigateTo('error_reporting')" class="flex items-center gap-2 px-4 py-2 bg-red-800 text-white rounded-md hover:bg-red-900 transition">
-                            ${Icons.Bug} Errors
+                            ${Icons.Bug} Errors/millores
                         </button>` : ''}
                         <button onclick="window.navigateTo('calendar')" class="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition">
                             ${Icons.Calendar} Calendari
@@ -2478,7 +2478,7 @@
 
                     <!-- SECCIÓ D'ERRORS PER A ADMINS -->
                     <div class="mt-8 bg-white p-6 rounded-2xl shadow-lg border-l-4 border-red-600">
-                        <h2 class="text-xl font-bold mb-4 flex items-center gap-2 text-red-800">${Icons.Bug} Errors Reportats (Betatesters)</h2>
+                        <h2 class="text-xl font-bold mb-4 flex items-center gap-2 text-red-800">${Icons.Bug} Errors Reportats (${state.currentUser.role === 'Administrador' ? 'Admin' : 'Betatester'})</h2>
                         <div class="overflow-x-auto">
                             <table class="w-full text-left">
                                 <thead class="bg-gray-50 text-xs uppercase font-bold text-gray-500">
@@ -2487,7 +2487,7 @@
                                         <th class="p-3">Pàgina</th>
                                         <th class="p-3">Descripció</th>
                                         <th class="p-3">Estat</th>
-                                        <th class="p-3">Accions</th>
+                                        ${(state.currentUser.role === 'Administrador' || state.currentUser.role === 'Betatester') ? '<th class="p-3">Accions</th>' : ''}
                                     </tr>
                                 </thead>
                                 <tbody class="text-sm">
@@ -2501,6 +2501,9 @@
                                             } else if (e.status === 'solucionat') {
                                                 statusClass = "bg-green-100 text-green-700";
                                                 statusLabel = "Solucionat";
+                                            } else if (e.status === 'validat') {
+                                                statusClass = "bg-purple-100 text-purple-700";
+                                                statusLabel = "Validat (FIX!)";
                                             }
 
                                             return `
@@ -2513,11 +2516,12 @@
                                                         ${statusLabel}
                                                     </span>
                                                 </td>
+                                                ${(state.currentUser.role === 'Administrador') ? `
                                                 <td class="p-3 text-xs flex gap-1 items-center flex-wrap">
                                                     <button onclick="window.updateErrorStatus(${e.id}, 'pendent')" class="px-1.5 py-0.5 rounded border border-yellow-500 text-yellow-700 hover:bg-yellow-50 font-bold transition">P</button>
                                                     <button onclick="window.updateErrorStatus(${e.id}, 'solucionant')" class="px-1.5 py-0.5 rounded border border-blue-500 text-blue-700 hover:bg-blue-50 font-bold transition">S...</button>
                                                     <button onclick="window.updateErrorStatus(${e.id}, 'solucionat')" class="px-1.5 py-0.5 rounded border border-green-500 text-green-700 hover:bg-green-50 font-bold transition">OK</button>
-                                                </td>
+                                                </td>` : ''}
                                             </tr>`;
                                         }).join("")}
                                 </tbody>
@@ -2813,11 +2817,11 @@
           <div class="animate-fade-in w-full h-full bg-red-50 p-6 overflow-y-auto">
             <header class="max-w-4xl mx-auto flex items-center gap-4 mb-8">
               <button onclick="window.goBack()" class="text-gray-600 bg-white p-2 rounded-full shadow hover:bg-gray-100 transition">${Icons.Back}</button>
-              <h1 class="text-3xl font-bold text-red-900 flex items-center gap-2">${Icons.Bug} Informe d'Errors (Betatester)</h1>
+              <h1 class="text-3xl font-bold text-red-900 flex items-center gap-2">${Icons.Bug} Informe d'Errors i Millores</h1>
             </header>
 
             <div class="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-xl border-t-8 border-red-600">
-              <p class="text-gray-600 mb-6 font-medium">Com a betatester, la teva ajuda és fonamental per millorar el Portal Escolar. Si trobes algun error, si us plau, informa'n detalladament.</p>
+              <p class="text-gray-600 mb-6 font-medium">Ajuda'ns a millorar el Portal Escolar. Si trobes algun error o tens una proposta de millora, si us plau, informa'n detalladament.</p>
               
               <form id="error-form" onsubmit="window.submitError(event)" class="space-y-6">
                 <div>
@@ -2863,6 +2867,60 @@
               </div>
             </div>
           </div>
+          ${state.currentUser.role === 'Betatester' ? `
+          <div class="max-w-4xl mx-auto mt-12 bg-white p-6 rounded-2xl shadow-lg border-l-4 border-red-600">
+            <h2 class="text-xl font-bold mb-4 flex items-center gap-2 text-red-800">${Icons.Bug} Gestionar Errors Reportats</h2>
+             <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead class="bg-gray-50 text-xs uppercase font-bold text-gray-500">
+                        <tr>
+                            <th class="p-3">Usuari</th>
+                            <th class="p-3">Pàgina</th>
+                            <th class="p-3">Descripció</th>
+                            <th class="p-3">Estat</th>
+                            <th class="p-3">Accions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-sm">
+                        ${state.reportedErrors.filter(e => {
+                          const reporter = state.users.find(u => u.username === (e.user_username || e.user));
+                          return reporter && (reporter.role === 'Alumne' || reporter.role === 'Professor');
+                        }).length === 0 ? '<tr><td colspan="5" class="p-4 text-center text-gray-400 italic">No hi ha errors per gestionar (només es mostren els d\'Alumnes i Professors normals).</td></tr>' : 
+                            state.reportedErrors.filter(e => {
+                              const reporter = state.users.find(u => u.username === (e.user_username || e.user));
+                              return reporter && (reporter.role === 'Alumne' || reporter.role === 'Professor');
+                            }).map(e => {
+                                let statusClass = "bg-yellow-100 text-yellow-700";
+                                let statusLabel = "Pendent";
+                                if (e.status === 'solucionant') {
+                                    statusClass = "bg-blue-100 text-blue-700";
+                                    statusLabel = "Solucionant";
+                                } else if (e.status === 'solucionat') {
+                                    statusClass = "bg-green-100 text-green-700";
+                                    statusLabel = "Solucionat";
+                                }
+
+                                return `
+                                <tr class="border-t hover:bg-gray-50">
+                                    <td class="p-3 font-medium">${e.user_name || e.name} (@${e.user_username || e.user})</td>
+                                    <td class="p-3"><span class="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-xs font-bold">${e.page}</span></td>
+                                    <td class="p-3 max-w-xs truncate" title="${e.description}">${e.description}</td>
+                                    <td class="p-3">
+                                        <span class="px-2 py-1 rounded text-[10px] font-bold ${statusClass}">
+                                            ${e.status === 'validat' ? 'Validat (Admin!)' : statusLabel}
+                                        </span>
+                                    </td>
+                                    <td class="p-3 text-xs flex gap-1 items-center flex-wrap">
+                                        <button onclick="window.updateErrorStatus(${e.id}, 'validat')" class="px-2 py-1 rounded border border-green-600 text-green-700 hover:bg-green-50 font-bold transition flex items-center gap-1">${Icons.Check} OK</button>
+                                        <button onclick="window.deleteErrorRecord(${e.id})" class="px-2 py-1 rounded border border-red-600 text-red-700 hover:bg-red-50 font-bold transition flex items-center gap-1">${Icons.Trash} NO</button>
+                                    </td>
+                                </tr>`;
+                            }).join("")}
+                    </tbody>
+                </table>
+            </div>
+          </div>
+          ` : ''}
         `;
       }
 
@@ -2906,6 +2964,17 @@
             renderApp();
         } else {
             alert("Error actualitzant estat: " + error.message);
+        }
+      };
+
+      window.deleteErrorRecord = async (id) => {
+        if (!confirm("Vols eliminar aquest report definitivament?")) return;
+        const { error } = await supabase.from("reported_errors").delete().eq("id", id);
+        if (!error) {
+            state.reportedErrors = state.reportedErrors.filter(e => e.id !== id);
+            renderApp();
+        } else {
+            alert("Error eliminant el report: " + error.message);
         }
       };
 
