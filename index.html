@@ -365,6 +365,9 @@
           case "student_game_2048":
             render2048Game(app);
             break;
+          case "student_game_pong":
+            renderPongGame(app);
+            break;
           case "admin_dashboard":
             renderAdminDashboard(app);
             break;
@@ -1081,7 +1084,7 @@
 
               // Agrupar per jocs
               // Agrupar per jocs
-              const games = ['SNAKE', 'SPACE', 'PACMAN', 'ARKANOID', '2048'];
+              const games = ['SNAKE', 'SPACE', 'PACMAN', 'ARKANOID', '2048', 'PONG'];
               const pointsPerUser = {};
 
               games.forEach(gameName => {
@@ -1184,6 +1187,12 @@
                   .order('score', { ascending: false })
                   .limit(3);
 
+              const { data: pongData } = await supabase.from('game_scores')
+                  .select('student_username, score')
+                  .eq('game', 'PONG')
+                  .order('score', { ascending: false })
+                  .limit(3);
+
               const snakeHtml = (snakeData || []).map((p, i) => `
                   <div class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
                       <div class="flex items-center gap-2">
@@ -1267,6 +1276,20 @@
                                     `).join('') || '<p class="text-sm text-gray-400 italic py-2">Encara no hi ha rècords.</p>'}
                                 </div>
                             </div>
+                            <div>
+                                <h4 class="text-lg font-bold mb-3 flex items-center gap-2 text-indigo-700"><span class="text-2xl">🏓</span> Top Pong</h4>
+                                <div class="bg-gray-50 rounded-xl p-4 border border-gray-100 shadow-inner">
+                                    ${(pongData || []).map((p, i) => `
+                                        <div class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
+                                            <div class="flex items-center gap-2">
+                                               <span class="text-xl font-bold w-6 text-center ${i===0?'text-yellow-500':i===1?'text-gray-400':i===2?'text-orange-400':''}">${i+1}</span>
+                                               <span class="font-medium text-gray-800">@${p.student_username}</span>
+                                            </div>
+                                            <span class="font-mono font-bold text-indigo-600">${p.score}</span>
+                                        </div>
+                                    `).join('') || '<p class="text-sm text-gray-400 italic py-2">Encara no hi ha rècords.</p>'}
+                                </div>
+                            </div>
                       </div>
                   </div>
               `;
@@ -1289,11 +1312,13 @@
         const pacmanRes = (state.gameScores || []).filter(r => r.game === 'PACMAN');
         const arkanoidRes = (state.gameScores || []).filter(r => r.game === 'ARKANOID');
         const game2048Res = (state.gameScores || []).filter(r => r.game === '2048');
+        const pongRes = (state.gameScores || []).filter(r => r.game === 'PONG');
         const bestSnake = snakeRes.length > 0 ? Math.max(...snakeRes.map(r => r.score)) : 0;
         const bestSpace = spaceRes.length > 0 ? Math.max(...spaceRes.map(r => r.score)) : 0;
         const bestPacman = pacmanRes.length > 0 ? Math.max(...pacmanRes.map(r => r.score)) : 0;
         const bestArkanoid = arkanoidRes.length > 0 ? Math.max(...arkanoidRes.map(r => r.score)) : 0;
         const best2048 = game2048Res.length > 0 ? Math.max(...game2048Res.map(r => r.score)) : 0;
+        const bestPong = pongRes.length > 0 ? Math.max(...pongRes.map(r => r.score)) : 0;
 
         container.innerHTML = `
           <div class="w-full h-full bg-gray-50 overflow-y-auto p-4 md:p-8 animate-fade-in">
@@ -1346,6 +1371,13 @@
                       <h3 class="text-2xl font-bold mb-2">2048</h3>
                       <p class="text-slate-100">Combina les fitxes per arribar al número 2048!</p>
                       <div class="mt-4 bg-slate-800 rounded-full px-4 py-1 text-sm font-bold">Rècord: ${best2048}</div>
+                  </button>
+
+                  <button onclick="window.navigateTo('student_game_pong')" class="bg-gradient-to-br from-indigo-600 to-indigo-800 p-8 rounded-3xl shadow-lg hover:shadow-xl hover:-translate-y-1 transition duration-300 flex flex-col items-center text-center text-white">
+                      <div class="text-6xl mb-4">🏓</div>
+                      <h3 class="text-2xl font-bold mb-2">Pong</h3>
+                      <p class="text-indigo-100">L'emblemàtic duel de pales. No deixis passar la bola!</p>
+                      <div class="mt-4 bg-indigo-900 rounded-full px-4 py-1 text-sm font-bold">Rècord: ${bestPong}</div>
                   </button>
               </div>
           </div>
@@ -2680,6 +2712,213 @@
           }, { passive: true });
 
           window.reset2048();
+      }
+
+      function renderPongGame(container) {
+          container.innerHTML = `
+            <div class="w-full h-full bg-slate-900 flex flex-col items-center p-4 overflow-hidden select-none animate-fade-in text-white font-mono">
+                <header class="w-full max-w-2xl flex justify-between items-center mb-6 border-b-4 border-dashed border-slate-700 pb-4">
+                    <button onclick="window.navigateTo('student_games_menu')" class="bg-white/10 p-2 text-white rounded-lg hover:bg-white/20 transition">${Icons.Back}</button>
+                    <div class="flex items-center gap-12">
+                        <div class="text-center">
+                            <span class="block text-[10px] text-indigo-400 font-bold">PLAYER</span>
+                            <span class="text-5xl font-black" id="pong-player-score">0</span>
+                        </div>
+                        <div class="text-center">
+                            <span class="block text-[10px] text-pink-400 font-bold">CPU</span>
+                            <span class="text-5xl font-black" id="pong-cpu-score">0</span>
+                        </div>
+                    </div>
+                    <div class="hidden sm:block">
+                        <button onclick="window.resetPong()" class="p-2 text-indigo-400 hover:text-white transition">REINICIAR</button>
+                    </div>
+                </header>
+
+                <div class="relative w-full max-w-2xl aspect-video bg-black rounded-lg shadow-2xl border-x-4 border-white/20 flex items-center justify-center" id="pong-field">
+                    <canvas id="pong-canvas" class="w-full h-full"></canvas>
+                    
+                    <div id="pong-start-overlay" class="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-center p-6 transition-opacity">
+                         <h2 class="text-4xl font-black text-indigo-400 mb-4 tracking-widest">PONG CHALLENGE</h2>
+                         <button id="pong-start-btn" class="px-8 py-3 bg-indigo-600 text-white font-bold rounded-full hover:bg-indigo-500 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-indigo-600/30">COMENÇAR PARTIDA</button>
+                         <p class="mt-6 text-sm text-gray-400">Mou la pala amb el ratolí o les fletxes.</p>
+                    </div>
+                </div>
+
+                <div class="mt-8 flex flex-col items-center gap-2 opacity-50">
+                    <p class="text-[10px] tracking-widest uppercase">Primer que arribi a 7 guanya!</p>
+                </div>
+            </div>
+          `;
+
+          const canvas = document.getElementById('pong-canvas');
+          const ctx = canvas.getContext('2d');
+          const field = document.getElementById('pong-field');
+          const startOverlay = document.getElementById('pong-start-overlay');
+          const startBtn = document.getElementById('pong-start-btn');
+          const playerScoreEl = document.getElementById('pong-player-score');
+          const cpuScoreEl = document.getElementById('pong-cpu-score');
+
+          const rect = field.getBoundingClientRect();
+          canvas.width = 800; // Fixed internal resolution
+          canvas.height = 450;
+
+          let player = { y: canvas.height/2 - 40, w: 12, h: 80, score: 0, color: '#6366f1' };
+          let cpu = { y: canvas.height/2 - 40, w: 12, h: 80, score: 0, color: '#f43f5e', speed: 4 };
+          let ball = { x: canvas.width/2, y: canvas.height/2, r: 8, dx: 0, dy: 0, speed: 5 };
+          
+          let gameActive = false;
+          let keys = {};
+
+          window.addEventListener('keydown', e => keys[e.code] = true);
+          window.addEventListener('keyup', e => keys[e.code] = false);
+
+          field.addEventListener('mousemove', e => {
+              if (!gameActive) return;
+              const canvasRect = canvas.getBoundingClientRect();
+              const mouseY = (e.clientY - canvasRect.top) * (canvas.height / canvasRect.height);
+              player.y = mouseY - player.h/2;
+          });
+
+          startBtn.onclick = () => {
+              startOverlay.classList.add('opacity-0', 'pointer-events-none');
+              gameActive = true;
+              resetBall();
+          };
+
+          function resetBall() {
+              ball.x = canvas.width/2;
+              ball.y = canvas.height/2;
+              ball.speed = 5;
+              const angle = (Math.random() * Math.PI/4) - Math.PI/8;
+              const dir = Math.random() > 0.5 ? 1 : -1;
+              ball.dx = dir * Math.cos(angle) * ball.speed;
+              ball.dy = Math.sin(angle) * ball.speed;
+          }
+
+          function update() {
+              if (!gameActive) return;
+
+              // Player Keyboard fallback
+              if (keys['ArrowUp'] || keys['KeyW']) player.y -= 8;
+              if (keys['ArrowDown'] || keys['KeyS']) player.y += 8;
+
+              // Constrain paddles
+              player.y = Math.max(0, Math.min(canvas.height - player.h, player.y));
+              
+              // CPU AI
+              const cpuTarget = ball.y - cpu.h/2;
+              if (cpu.y < cpuTarget - 5) cpu.y += cpu.speed;
+              else if (cpu.y > cpuTarget + 5) cpu.y -= cpu.speed;
+              cpu.y = Math.max(0, Math.min(canvas.height - cpu.h, cpu.y));
+
+              // Move ball
+              ball.x += ball.dx;
+              ball.y += ball.dy;
+
+              // Bounce top/bottom
+              if (ball.y < ball.r || ball.y > canvas.height - ball.r) {
+                  ball.dy *= -1;
+              }
+
+              // Paddle collisions
+              // Player
+              if (ball.x - ball.r < 30 + player.w && ball.y > player.y && ball.y < player.y + player.h) {
+                  reflectBall(player);
+              }
+              // CPU
+              if (ball.x + ball.r > canvas.width - 30 - cpu.w && ball.y > cpu.y && ball.y < cpu.y + cpu.h) {
+                  reflectBall(cpu);
+              }
+
+              // Scoring
+              if (ball.x < 0) {
+                  cpu.score++;
+                  cpuScoreEl.innerText = cpu.score;
+                  checkGameOver();
+              } else if (ball.x > canvas.width) {
+                  player.score++;
+                  playerScoreEl.innerText = player.score;
+                  checkGameOver();
+              }
+          }
+
+          function reflectBall(p) {
+              const impact = (ball.y - (p.y + p.h/2)) / (p.h/2);
+              const angle = impact * (Math.PI/3);
+              const dir = ball.x < canvas.width/2 ? 1 : -1;
+              
+              ball.speed += 0.5;
+              ball.dx = dir * Math.cos(angle) * ball.speed;
+              ball.dy = Math.sin(angle) * ball.speed;
+              
+              // Prevent trapping
+              ball.x += ball.dx;
+          }
+
+          function checkGameOver() {
+              if (player.score >= 7 || cpu.score >= 7) {
+                  gameActive = false;
+                  // Calculate points: Player goals * 10 - CPU goals * 10 (Allow negative)
+                  const finalScore = (player.score * 10) - (cpu.score * 10);
+                  window.saveGameRecord('PONG', finalScore).then(isRecord => {
+                      alert(player.score > cpu.score ? `HAS GUANYAT! 🎉 Puntuació: ${finalScore}` : `HAS PERDUT... 💀 Puntuació: ${finalScore}`);
+                      window.navigateTo('student_games_menu');
+                  });
+              } else {
+                  resetBall();
+              }
+          }
+
+          function draw() {
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              
+              // Field center line
+              ctx.setLineDash([10, 10]);
+              ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+              ctx.lineWidth = 4;
+              ctx.beginPath();
+              ctx.moveTo(canvas.width/2, 0);
+              ctx.lineTo(canvas.width/2, canvas.height);
+              ctx.stroke();
+              ctx.setLineDash([]);
+
+              // Paddles
+              // Player
+              ctx.fillStyle = player.color;
+              ctx.beginPath();
+              ctx.roundRect(30, player.y, player.w, player.h, 4);
+              ctx.fill();
+              
+              // CPU
+              ctx.fillStyle = cpu.color;
+              ctx.beginPath();
+              ctx.roundRect(canvas.width - 30 - cpu.w, cpu.y, cpu.w, cpu.h, 4);
+              ctx.fill();
+
+              // Ball
+              ctx.shadowBlur = 10;
+              ctx.shadowColor = 'rgba(255,255,255,0.5)';
+              ctx.fillStyle = '#fff';
+              ctx.beginPath();
+              ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2);
+              ctx.fill();
+              ctx.shadowBlur = 0;
+          }
+
+          const loop = setInterval(() => {
+              update();
+              draw();
+          }, 1000/60);
+          state.currentGameInterval = loop;
+
+          window.resetPong = () => {
+              player.score = 0;
+              cpu.score = 0;
+              playerScoreEl.innerText = '0';
+              cpuScoreEl.innerText = '0';
+              startOverlay.classList.remove('opacity-0', 'pointer-events-none');
+              gameActive = false;
+          };
       }
 
       function renderStudentTestResults(container) {
