@@ -2957,6 +2957,17 @@
       };
 
       window.updateErrorStatus = async (id, newStatus) => {
+        if (newStatus === 'solucionat') {
+          const { error } = await supabase.from("reported_errors").delete().eq("id", id);
+          if (!error) {
+            state.reportedErrors = state.reportedErrors.filter(e => e.id !== id);
+            renderApp();
+          } else {
+            alert("Error completant (eliminant) la tasca: " + error.message);
+          }
+          return;
+        }
+
         const { error } = await supabase.from("reported_errors").update({ status: newStatus }).eq("id", id);
         if (!error) {
             const idx = state.reportedErrors.findIndex(e => e.id === id);
