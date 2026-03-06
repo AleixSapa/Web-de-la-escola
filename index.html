@@ -294,8 +294,6 @@
             if (count > maxWins) {
                maxWins = count;
                gamerUser = user;
-            } else if (count === maxWins && maxWins > 0) {
-              // En cas d'empat, podríem mirar punts totals, però per ara deixem el primer que hem trobat
             }
           }
 
@@ -303,6 +301,21 @@
           if (gamerUser && maxWins > 0) {
             state.studentTitles[gamerUser] = (state.studentTitles[gamerUser] || []);
             state.studentTitles[gamerUser].push('Gamer');
+          }
+
+          // Practicador: persona amb més encerts totals de pràctiques
+          const { data: allPractice } = await supabase.from('practice_results').select('student_username, score');
+          if (allPractice && allPractice.length > 0) {
+             const practiceTotalScores = {};
+             allPractice.forEach(p => {
+                 practiceTotalScores[p.student_username] = (practiceTotalScores[p.student_username] || 0) + p.score;
+             });
+             const topPracticador = Object.entries(practiceTotalScores).sort((a, b) => b[1] - a[1])[0];
+             if (topPracticador && topPracticador[1] > 0) {
+                 const bestPracticer = topPracticador[0];
+                 state.studentTitles[bestPracticer] = (state.studentTitles[bestPracticer] || []);
+                 state.studentTitles[bestPracticer].push('Practicador');
+             }
           }
         } catch (e) {
           console.error("Error calculant títols:", e);
@@ -646,13 +659,13 @@
                                  return titles.map(title => `
                                      <div class="bg-white p-6 rounded-3xl shadow-lg border-2 border-yellow-100 flex items-center gap-5 relative overflow-hidden group">
                                          <div class="absolute -right-4 -top-4 text-yellow-50 opacity-10 group-hover:scale-110 transition-transform duration-500">${Icons.Star.replace('w-6 h-6', 'w-32 h-32')}</div>
-                                         <div class="bg-gradient-to-br from-yellow-400 to-orange-500 p-4 rounded-2xl text-white shadow-lg z-10">
-                                             ${title === 'Gamer' ? Icons.Trophy : Icons.Star}
+                                         <div class="bg-gradient-to-br ${title === 'Gamer' ? 'from-yellow-400 to-orange-500' : 'from-emerald-400 to-teal-500'} p-4 rounded-2xl text-white shadow-lg z-10">
+                                             ${title === 'Gamer' ? Icons.Trophy : '🤓'}
                                          </div>
                                          <div class="z-10">
-                                             <h3 class="text-xs font-black text-yellow-600 uppercase tracking-widest mb-1">${title}</h3>
-                                             <p class="text-lg font-bold text-gray-800">${student ? student.name : '@'+username}</p>
-                                             <p class="text-xs text-gray-500 mt-1">${title === 'Gamer' ? 'Atorgat per ser el número 1 en més jocs.' : ''}</p>
+                                             <h3 class="text-xs font-black ${title === 'Gamer' ? 'text-yellow-600' : 'text-emerald-600'} uppercase tracking-widest mb-1">${username === state.currentUser.username ? 'TU' : (student ? student.name : '@'+username)}</h3>
+                                             <p class="text-lg font-bold text-gray-800 uppercase">${title}</p>
+                                             <p class="text-xs text-gray-500 mt-1">${title === 'Gamer' ? 'Atorgat per ser el número 1 en més jocs.' : 'El màxim encertador de pràctiques.'}</p>
                                          </div>
                                      </div>
                                  `).join('');
@@ -748,79 +761,90 @@
         state.practiceGame.subject = subject;
         state.practiceGame.qNum = 1;
         state.practiceGame.score = 0;
+        state.practiceGame.usedQuestions = [];
         state.view = "student_practice_game";
         window.generatePracticeQuestion();
         renderApp();
       };
 
       window.generatePracticeQuestion = () => {
-        let type = state.practiceGame.subject;
-        if (type === "mixte") {
-          type = Math.random() > 0.5 ? "mates" : "catala";
-        }
+        let isDuplicate = true;
+        let attempts = 0;
 
-        if (type === "mates") {
-          const opType = Math.floor(Math.random() * 4); // 0: suma, 1: resta, 2: multiplicació, 3: divisió
-          if (opType === 0) {
-            // Suma
-            let n1 = Math.floor(Math.random() * 100) + 1; // 1 to 100
-            let n2 = Math.floor(Math.random() * 100) + 1; // 1 to 100
-            state.practiceGame.text = `${n1} + ${n2}`;
-            state.practiceGame.currentAnswer = (n1 + n2).toString();
-          } else if (opType === 1) {
-            // Resta
-            let n1 = Math.floor(Math.random() * 100) + 1;
-            let n2 = Math.floor(Math.random() * 100) + 1;
-            // Asegurem que el resultat sigui o no negatiu o només positiu (posem només positius per simplificar a primària)
-            if (n2 > n1) { [n1, n2] = [n2, n1]; } 
-            state.practiceGame.text = `${n1} - ${n2}`;
-            state.practiceGame.currentAnswer = (n1 - n2).toString();
-          } else if (opType === 2) {
-            // Multiplicació
-            let n1 = Math.floor(Math.random() * 12) + 1; // Taules fins al 12
-            let n2 = Math.floor(Math.random() * 12) + 1; // Taules fins al 12
-            state.practiceGame.text = `${n1} x ${n2}`;
-            state.practiceGame.currentAnswer = (n1 * n2).toString();
-          } else {
-            // Divisió exacta
-            let n2 = Math.floor(Math.random() * 12) + 1; // Divisor de 1 a 12
-            let resultat = Math.floor(Math.random() * 12) + 1; // Resultat de 1 a 12
-            let n1 = n2 * resultat; // Dividend assegura divisió exacta
-            state.practiceGame.text = `${n1} ÷ ${n2}`;
-            state.practiceGame.currentAnswer = resultat.toString();
-          }
-        } else {
-          // Base de dades simple de català
-          const catalaDB = [
-            { q: "Plural de 'gos'", a: "gossos" },
-            { q: "Plural de 'llapis'", a: "llapis" },
-            { q: "Plural de 'bosc'", a: "boscos" },
-            { q: "Plural de 'peix'", a: "peixos" },
-            { q: "Femení de 'nen'", a: "nena" },
-            { q: "Femení de 'cavall'", a: "euga" },
-            { q: "Femení de 'metge'", a: "metgessa" },
-            { q: "Femení de 'actor'", a: "actriu" },
-            { q: "Antònim de 'gran'", a: "petit" },
-            { q: "Antònim de 'bo'", a: "dolent" },
-            { q: "Antònim de 'fred'", a: "calent" },
-            { q: "Antònim de 'fàcil'", a: "dificil" }, // Sense accent
-            { q: "Antònim de 'pobre'", a: "ric" },
-            { q: "Lletra que falta (b/v): a_ella (insecte)", a: "b" },
-            { q: "Lletra que falta (b/v): ca_all", a: "v" },
-            { q: "Lletra que falta (b/v): can_i", a: "v" },
-            { q: "Lletra que falta (b/v): _erd (color)", a: "v" },
-            { q: "Lletra que falta (b/v): _arxa (nau)", a: "b" },
-            { q: "Lletra que falta (c/ç): feli_", a: "c" },
-            { q: "Lletra que falta (c/ç): _el (blau)", a: "c" },
-            { q: "Lletra que falta (h): _istòria", a: "h" },
-            { q: "Lletra que falta (h): _ome", a: "h" },
-            { q: "Com s'escriu 10 amb lletres?", a: "deu" },
-            { q: "Com s'escriu 20 amb lletres?", a: "vint" },
-            { q: "Com s'escriu 5 amb lletres?", a: "cinc" },
-          ];
-          const q = catalaDB[Math.floor(Math.random() * catalaDB.length)];
-          state.practiceGame.text = q.q;
-          state.practiceGame.currentAnswer = q.a.toLowerCase();
+        while (isDuplicate && attempts < 50) {
+            attempts++;
+            let type = state.practiceGame.subject;
+            if (type === "mixte") {
+              type = Math.random() > 0.5 ? "mates" : "catala";
+            }
+
+            if (type === "mates") {
+              const opType = Math.floor(Math.random() * 4); // 0: suma, 1: resta, 2: multiplicació, 3: divisió
+              if (opType === 0) {
+                // Suma
+                let n1 = Math.floor(Math.random() * 100) + 1; // 1 to 100
+                let n2 = Math.floor(Math.random() * 100) + 1; // 1 to 100
+                state.practiceGame.text = `${n1} + ${n2}`;
+                state.practiceGame.currentAnswer = (n1 + n2).toString();
+              } else if (opType === 1) {
+                // Resta
+                let n1 = Math.floor(Math.random() * 100) + 1;
+                let n2 = Math.floor(Math.random() * 100) + 1;
+                if (n2 > n1) { [n1, n2] = [n2, n1]; } 
+                state.practiceGame.text = `${n1} - ${n2}`;
+                state.practiceGame.currentAnswer = (n1 - n2).toString();
+              } else if (opType === 2) {
+                // Multiplicació
+                let n1 = Math.floor(Math.random() * 12) + 1; // Taules fins al 12
+                let n2 = Math.floor(Math.random() * 12) + 1; // Taules fins al 12
+                state.practiceGame.text = `${n1} x ${n2}`;
+                state.practiceGame.currentAnswer = (n1 * n2).toString();
+              } else {
+                // Divisió exacta
+                let n2 = Math.floor(Math.random() * 12) + 1; // Divisor de 1 a 12
+                let resultat = Math.floor(Math.random() * 12) + 1; // Resultat de 1 a 12
+                let n1 = n2 * resultat; // Dividend assegura divisió exacta
+                state.practiceGame.text = `${n1} ÷ ${n2}`;
+                state.practiceGame.currentAnswer = resultat.toString();
+              }
+            } else {
+              // Base de dades simple de català
+              const catalaDB = [
+                { q: "Plural de 'gos'", a: "gossos" },
+                { q: "Plural de 'llapis'", a: "llapis" },
+                { q: "Plural de 'bosc'", a: "boscos" },
+                { q: "Plural de 'peix'", a: "peixos" },
+                { q: "Femení de 'nen'", a: "nena" },
+                { q: "Femení de 'cavall'", a: "euga" },
+                { q: "Femení de 'metge'", a: "metgessa" },
+                { q: "Femení de 'actor'", a: "actriu" },
+                { q: "Antònim de 'gran'", a: "petit" },
+                { q: "Antònim de 'bo'", a: "dolent" },
+                { q: "Antònim de 'fred'", a: "calent" },
+                { q: "Antònim de 'fàcil'", a: "dificil" }, // Sense accent
+                { q: "Antònim de 'pobre'", a: "ric" },
+                { q: "Lletra que falta (b/v): a_ella (insecte)", a: "b" },
+                { q: "Lletra que falta (b/v): ca_all", a: "v" },
+                { q: "Lletra que falta (b/v): can_i", a: "v" },
+                { q: "Lletra que falta (b/v): _erd (color)", a: "v" },
+                { q: "Lletra que falta (b/v): _arxa (nau)", a: "b" },
+                { q: "Lletra que falta (c/ç): feli_", a: "c" },
+                { q: "Lletra que falta (c/ç): _el (blau)", a: "c" },
+                { q: "Lletra que falta (h): _istòria", a: "h" },
+                { q: "Lletra que falta (h): _ome", a: "h" },
+                { q: "Com s'escriu 10 amb lletres?", a: "deu" },
+                { q: "Com s'escriu 20 amb lletres?", a: "vint" },
+                { q: "Com s'escriu 5 amb lletres?", a: "cinc" },
+              ];
+              const q = catalaDB[Math.floor(Math.random() * catalaDB.length)];
+              state.practiceGame.text = q.q;
+              state.practiceGame.currentAnswer = q.a.toLowerCase();
+            }
+
+            if (!state.practiceGame.usedQuestions.includes(state.practiceGame.text)) {
+                isDuplicate = false;
+                state.practiceGame.usedQuestions.push(state.practiceGame.text);
+            }
         }
       };
 
@@ -1086,9 +1110,10 @@
 
           try {
               const { data: allScores } = await supabase.from('game_scores').select('*');
-              if(!allScores) throw new Error("No hi ha dades");
+              const { data: allPractice } = await supabase.from('practice_results').select('student_username, score');
 
-              // Agrupar per jocs
+              if(!allScores) throw new Error("No hi ha dades de jocs");
+
               // Agrupar per jocs
               const games = ['SNAKE', 'SPACE', 'PACMAN', 'ARKANOID', '2048', 'PONG'];
               const pointsPerUser = {};
@@ -1129,25 +1154,90 @@
                   </div>
               `).join('') || '<p class="text-sm text-gray-400 italic py-4">Encara no hi ha prou competició per al rànquing global.</p>';
 
+              // Càlcul Títol "Practicador"
+              let practicadorHtml = "";
+              if (allPractice && allPractice.length > 0) {
+                  const practiceTotalScores = {};
+                  allPractice.forEach(p => {
+                      // Sumem tots els encerts que l'alumne ha aconseguit en les diverses pràctiques
+                      practiceTotalScores[p.student_username] = (practiceTotalScores[p.student_username] || 0) + p.score;
+                  });
+                  // Ordenem per trobar el TOP 1
+                  const topPracticador = Object.entries(practiceTotalScores).sort((a, b) => b[1] - a[1])[0];
+                  
+                  if (topPracticador && topPracticador[1] > 0) {
+                      const amITop = state.currentUser && state.currentUser.username === topPracticador[0];
+                      const myScore = practiceTotalScores[state.currentUser.username] || 0;
+                      const acertsRestants = topPracticador[1] - myScore;
+
+                      if (amITop) {
+                          practicadorHtml = `
+                              <div class="mt-8 bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-200 shadow-sm relative overflow-hidden group">
+                                  <div class="absolute -right-6 -bottom-6 text-8xl opacity-10 group-hover:scale-110 transition duration-500">🎓</div>
+                                  <h4 class="text-[11px] font-black text-green-700 uppercase tracking-widest mb-3 flex items-center gap-1.5 relative z-10"><span class="text-lg">⭐</span> Menció d'Honor Especial</h4>
+                                  <div class="flex justify-between items-center relative z-10">
+                                      <div class="flex items-center gap-4">
+                                         <span class="text-4xl bg-white p-2 rounded-full shadow-sm">🤓</span>
+                                         <div class="flex flex-col text-left">
+                                             <span class="font-black text-gray-900 text-xl">Tu tens el títol!</span>
+                                             <span class="text-xs text-green-600 font-bold uppercase tracking-wider">Títol: El Practicador</span>
+                                         </div>
+                                      </div>
+                                      <div class="text-right">
+                                         <span class="block font-black text-3xl text-emerald-600">${topPracticador[1]}</span>
+                                         <span class="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Acerts Totals</span>
+                                      </div>
+                                  </div>
+                                  <p class="text-xs text-green-800/60 mt-4 italic font-medium relative z-10 text-center border-t border-green-200/50 pt-3">Ets la persona amb més acerts de l'escola! Segueix així per no perdre el títol!</p>
+                              </div>
+                          `;
+                      } else {
+                          practicadorHtml = `
+                              <div class="mt-8 bg-gradient-to-br from-slate-50 to-gray-50 rounded-2xl p-6 border border-slate-200 shadow-sm relative overflow-hidden group">
+                                  <div class="absolute -right-6 -bottom-6 text-8xl opacity-10 group-hover:scale-110 transition duration-500 grayscale">🎓</div>
+                                  <h4 class="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-1.5 relative z-10"><span class="text-lg grayscale">⭐</span> Menció d'Honor Especial</h4>
+                                  <div class="flex justify-between items-center relative z-10">
+                                      <div class="flex items-center gap-4">
+                                         <span class="text-4xl bg-white p-2 rounded-full shadow-sm">🤓</span>
+                                         <div class="flex flex-col text-left">
+                                             <span class="font-black text-gray-900 text-xl">@${topPracticador[0]} té el títol</span>
+                                             <span class="text-xs text-slate-500 font-bold uppercase tracking-wider">Títol: El Practicador</span>
+                                         </div>
+                                      </div>
+                                      <div class="text-right">
+                                         <span class="block font-black text-3xl text-slate-600">${topPracticador[1]}</span>
+                                         <span class="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Acerts Totals</span>
+                                      </div>
+                                  </div>
+                                  <p class="text-xs text-slate-500 mt-4 font-medium relative z-10 text-center border-t border-slate-200 pt-3">Tu ara mateix tens <strong>${myScore} acerts</strong>. Et falten <strong>${acertsRestants} acerts</strong> per superar-lo!</p>
+                              </div>
+                          `;
+                      }
+                  }
+              }
+
               modal.innerHTML = `
-                  <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in relative flex flex-col border border-indigo-100">
-                      <header class="p-8 bg-indigo-600 text-white flex justify-between items-center shrink-0">
+                  <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in relative flex flex-col border border-indigo-100 max-h-[90vh]">
+                      <header class="p-8 bg-indigo-600 text-white flex justify-between items-center shrink-0 shadow-md z-10">
                           <div>
-                            <h3 class="font-black text-2xl tracking-tight flex items-center gap-2">🏅 Top Global</h3>
-                            <p class="text-indigo-200 text-xs font-bold mt-1 uppercase tracking-widest">Els millors de l'aula</p>
+                            <h3 class="font-black text-2xl tracking-tight flex items-center gap-2">🏅 Rànquings</h3>
+                            <p class="text-indigo-200 text-xs font-bold mt-1 uppercase tracking-widest">El quadre d'honor de l'escola</p>
                           </div>
                           <button onclick="window.closeModal()" class="text-white bg-white/20 hover:bg-white/40 w-10 h-10 rounded-full transition font-bold leading-none flex items-center justify-center text-2xl">&times;</button>
                       </header>
-                      <div class="p-8 overflow-y-auto">
-                           <div class="mb-6 bg-slate-50 p-4 rounded-xl text-xs text-slate-500 border border-slate-100">
-                             Punts: <strong>1r lloc (3pt)</strong>, <strong>2n lloc (2pt)</strong> i <strong>3r lloc (1pt)</strong> en cada joc.
+                      <div class="p-8 overflow-y-auto bg-white custom-scrollbar">
+                           <h4 class="text-sm font-black text-indigo-800 uppercase tracking-widest mb-4 flex items-center gap-2 border-b border-indigo-50 pb-2"><span class="text-xl">🏆</span> Rànquing de Jocs</h4>
+                           <div class="mb-6 bg-indigo-50/50 p-4 rounded-xl text-xs text-indigo-600/80 border border-indigo-100 font-medium">
+                             Punts de mestre: <strong>1r (+3pt)</strong>, <strong>2n (+2pt)</strong> i <strong>3r (+1pt)</strong> en cada joc de l'escola.
                            </div>
-                           <div class="space-y-2">
+                           <div class="space-y-2 mb-4">
                                ${globalHtml}
                            </div>
+
+                           ${practicadorHtml}
                       </div>
-                      <footer class="p-6 bg-slate-50 border-t flex justify-center">
-                         <button onclick="window.closeModal()" class="px-8 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-100 transition shadow-sm">Tornar al Dashboard</button>
+                      <footer class="p-6 bg-slate-50 border-t flex justify-center shrink-0">
+                         <button onclick="window.closeModal()" class="px-8 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-100 transition shadow-sm hover:shadow-md hover:-translate-y-0.5 w-full">Tancar Plafó</button>
                       </footer>
                   </div>
               `;
