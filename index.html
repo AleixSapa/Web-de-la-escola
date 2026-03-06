@@ -1304,84 +1304,99 @@
           }
       };
 
-      function renderGamesMenu(container) {
-        if (state.isLoadingData) return (container.innerHTML = `<div class="p-10 text-center animate-pulse text-gray-400">Carregant jocs i puntuacions...</div>`);
-        
-        const snakeRes = (state.gameScores || []).filter(r => r.game === 'SNAKE');
-        const spaceRes = (state.gameScores || []).filter(r => r.game === 'SPACE');
-        const pacmanRes = (state.gameScores || []).filter(r => r.game === 'PACMAN');
-        const arkanoidRes = (state.gameScores || []).filter(r => r.game === 'ARKANOID');
-        const game2048Res = (state.gameScores || []).filter(r => r.game === '2048');
-        const pongRes = (state.gameScores || []).filter(r => r.game === 'PONG');
-        const bestSnake = snakeRes.length > 0 ? Math.max(...snakeRes.map(r => r.score)) : 0;
-        const bestSpace = spaceRes.length > 0 ? Math.max(...spaceRes.map(r => r.score)) : 0;
-        const bestPacman = pacmanRes.length > 0 ? Math.max(...pacmanRes.map(r => r.score)) : 0;
-        const bestArkanoid = arkanoidRes.length > 0 ? Math.max(...arkanoidRes.map(r => r.score)) : 0;
-        const best2048 = game2048Res.length > 0 ? Math.max(...game2048Res.map(r => r.score)) : 0;
-        const bestPong = pongRes.length > 0 ? Math.max(...pongRes.map(r => r.score)) : 0;
-
+      async function renderGamesMenu(container) {
         container.innerHTML = `
-          <div class="w-full h-full bg-gray-50 overflow-y-auto p-4 md:p-8 animate-fade-in">
-               <header class="max-w-4xl mx-auto flex items-center justify-between mb-10 bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+          <div class="w-full h-full bg-gray-50 overflow-y-auto p-4 md:p-8 animate-fade-in flex flex-col items-center">
+               <header class="w-full max-w-6xl mx-auto flex items-center justify-between mb-10 bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
                   <div class="flex items-center gap-4">
                       <button onclick="window.goBack()" class="text-gray-600 bg-gray-50 p-2 rounded-full hover:bg-gray-100 transition">${Icons.Back}</button>
-                      <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2"><span class="text-pink-600">🎮</span> Jocs</h2>
+                      <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2"><span class="text-pink-600">🎮</span> Jocs de l'Escola</h2>
                   </div>
-                  <div class="flex gap-2">
-                      <button onclick="window.showChampions()" class="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-400 text-yellow-900 border border-yellow-500 font-bold rounded-lg hover:bg-yellow-500 transition text-xs">
-                          🏆 Campions
-                      </button>
-                      <button onclick="window.showTopGlobal()" class="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition text-xs shadow-sm">
-                          🏅 Top Global
-                      </button>
-                  </div>
+                  <button onclick="window.showTopGlobal()" class="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">
+                      🏅 Rànquing Global
+                  </button>
                </header>
-              
-              <div class="max-w-3xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <button onclick="window.navigateTo('student_game_snake')" class="bg-gradient-to-br from-green-400 to-green-600 p-8 rounded-3xl shadow-lg hover:shadow-xl hover:-translate-y-1 transition duration-300 flex flex-col items-center text-center text-white">
-                      <div class="text-6xl mb-4">🐍</div>
-                      <h3 class="text-2xl font-bold mb-2">Snake</h3>
-                      <p class="text-green-100">El joc de la serp clàssic. Menja pomes i creix!</p>
-                      <div class="mt-4 bg-green-800 rounded-full px-4 py-1 text-sm font-bold">Rècord: ${bestSnake}</div>
-                  </button>
-
-                  <button onclick="window.navigateTo('student_game_space')" class="bg-gradient-to-br from-blue-500 to-indigo-700 p-8 rounded-3xl shadow-lg hover:shadow-xl hover:-translate-y-1 transition duration-300 flex flex-col items-center text-center text-white">
-                      <div class="text-6xl mb-4">🚀</div>
-                      <h3 class="text-2xl font-bold mb-2">Space Invaders</h3>
-                      <p class="text-blue-100">Defensa la Terra dels invasors de l'espai!</p>
-                      <div class="mt-4 bg-blue-800 rounded-full px-4 py-1 text-sm font-bold">Rècord: ${bestSpace}</div>
-                  </button>
-
-                  <button onclick="window.navigateTo('student_game_pacman')" class="bg-gradient-to-br from-yellow-400 to-yellow-600 p-8 rounded-3xl shadow-lg hover:shadow-xl hover:-translate-y-1 transition duration-300 flex flex-col items-center text-center text-white">
-                      <div class="text-6xl mb-4">🟡</div>
-                      <h3 class="text-2xl font-bold mb-2">Pac-Man</h3>
-                      <p class="text-yellow-100">Menja tots els punts i escapa dels fantasmes!</p>
-                      <div class="mt-4 bg-yellow-800 rounded-full px-4 py-1 text-sm font-bold">Rècord: ${bestPacman}</div>
-                  </button>
-
-                   <button onclick="window.navigateTo('student_game_arkanoid')" class="bg-gradient-to-br from-red-500 to-orange-600 p-8 rounded-3xl shadow-lg hover:shadow-xl hover:-translate-y-1 transition duration-300 flex flex-col items-center text-center text-white">
-                      <div class="text-6xl mb-4">🧱</div>
-                      <h3 class="text-2xl font-bold mb-2">Arkanoid</h3>
-                      <p class="text-red-100">Trenca tots els maons abans que caigui la pilota!</p>
-                      <div class="mt-4 bg-red-800 rounded-full px-4 py-1 text-sm font-bold">Rècord: ${bestArkanoid}</div>
-                  </button>
-
-                  <button onclick="window.navigateTo('student_game_2048')" class="bg-gradient-to-br from-slate-500 to-slate-700 p-8 rounded-3xl shadow-lg hover:shadow-xl hover:-translate-y-1 transition duration-300 flex flex-col items-center text-center text-white">
-                      <div class="text-6xl mb-4">🔢</div>
-                      <h3 class="text-2xl font-bold mb-2">2048</h3>
-                      <p class="text-slate-100">Combina les fitxes per arribar al número 2048!</p>
-                      <div class="mt-4 bg-slate-800 rounded-full px-4 py-1 text-sm font-bold">Rècord: ${best2048}</div>
-                  </button>
-
-                  <button onclick="window.navigateTo('student_game_pong')" class="bg-gradient-to-br from-indigo-600 to-indigo-800 p-8 rounded-3xl shadow-lg hover:shadow-xl hover:-translate-y-1 transition duration-300 flex flex-col items-center text-center text-white">
-                      <div class="text-6xl mb-4">🏓</div>
-                      <h3 class="text-2xl font-bold mb-2">Pong</h3>
-                      <p class="text-indigo-100">L'emblemàtic duel de pales. No deixis passar la bola!</p>
-                      <div class="mt-4 bg-indigo-900 rounded-full px-4 py-1 text-sm font-bold">Rècord: ${bestPong}</div>
-                  </button>
-              </div>
+               
+               <div id="games-grid-container" class="w-full max-w-6xl grid grid-cols-1 md:grid-cols-2 gap-6">
+                   <div class="col-span-full py-20 text-center animate-pulse text-gray-400 font-medium">
+                       <div class="text-4xl mb-4">⚙️</div>
+                       Apuntant els marcadors...
+                   </div>
+               </div>
           </div>
         `;
+
+        const grid = document.getElementById('games-grid-container');
+
+        try {
+            const { data: allScores } = await supabase.from('game_scores').select('game, student_username, score').order('score', { ascending: false });
+            
+            const getT3 = (g) => (allScores || []).filter(s => s.game === g).slice(0, 3);
+            
+            const snakeT3 = getT3('SNAKE');
+            const spaceT3 = getT3('SPACE');
+            const pacmanT3 = getT3('PACMAN');
+            const arkanoidT3 = getT3('ARKANOID');
+            const game2048T3 = getT3('2048');
+            const pongT3 = getT3('PONG');
+
+            const snakeRes = (state.gameScores || []).filter(r => r.game === 'SNAKE');
+            const spaceRes = (state.gameScores || []).filter(r => r.game === 'SPACE');
+            const pacmanRes = (state.gameScores || []).filter(r => r.game === 'PACMAN');
+            const arkanoidRes = (state.gameScores || []).filter(r => r.game === 'ARKANOID');
+            const game2048Res = (state.gameScores || []).filter(r => r.game === '2048');
+            const pongRes = (state.gameScores || []).filter(r => r.game === 'PONG');
+            
+            const best = (res) => res.length > 0 ? Math.max(...res.map(r => r.score)) : 0;
+
+            const renderCard = (id, icon, title, desc, color, colorDark, bestScore, top3) => `
+                <div class="bg-white rounded-3xl overflow-hidden shadow-md hover:shadow-xl transition duration-500 border border-gray-100 flex flex-col xl:flex-row group">
+                    <button onclick="window.navigateTo('${id}')" class="flex-1 p-6 md:p-8 bg-gradient-to-br ${color} text-white text-left transition relative overflow-hidden min-h-[220px]">
+                        <div class="absolute -right-4 -bottom-4 text-9xl opacity-10 group-hover:scale-110 transition duration-500">${icon}</div>
+                        <div class="relative z-10 flex flex-col h-full justify-between">
+                            <div>
+                                <div class="text-5xl mb-3">${icon}</div>
+                                <h3 class="text-2xl font-black mb-1">${title}</h3>
+                                <p class="text-white/80 text-sm mb-6 max-w-[200px] leading-relaxed">${desc}</p>
+                            </div>
+                            <div class="inline-flex items-center gap-2 bg-${colorDark}/40 backdrop-blur-sm rounded-xl px-4 py-2 border border-white/20 self-start">
+                                <span class="text-[10px] font-bold uppercase tracking-wider text-white/60">El teu rècord</span>
+                                <span class="font-mono font-black text-lg">${bestScore}</span>
+                            </div>
+                        </div>
+                    </button>
+                    <div class="xl:w-64 bg-gray-50/50 p-6 flex flex-col justify-center border-t xl:border-l xl:border-t-0 border-gray-100">
+                        <h4 class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-1.5">
+                            <span class="text-yellow-500">🏆</span> Campions
+                        </h4>
+                        <div class="space-y-3">
+                            ${top3.map((p, i) => `
+                                <div class="flex items-center justify-between gap-3 group/rank">
+                                    <div class="flex items-center gap-2 overflow-hidden">
+                                        <span class="text-sm font-black w-5 text-center ${i===0?'text-yellow-500':i===1?'text-gray-400':i===2?'text-orange-400':''}">${i+1}</span>
+                                        <span class="text-sm font-bold text-gray-700 truncate">@${p.student_username}</span>
+                                    </div>
+                                    <span class="font-mono font-bold text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg">${p.score}</span>
+                                </div>
+                            `).join('') || '<p class="text-xs text-gray-400 italic">Encara sense rècords</p>'}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            grid.innerHTML = `
+                ${renderCard('student_game_snake', '🐍', 'Snake', 'El joc clàssic. Menja i creix!', 'from-emerald-400 to-emerald-600', 'emerald-900', best(snakeRes), snakeT3)}
+                ${renderCard('student_game_space', '🚀', 'Space Invaders', 'Defensa la Terra!', 'from-blue-500 to-indigo-700', 'indigo-900', best(spaceRes), spaceT3)}
+                ${renderCard('student_game_pacman', '🟡', 'Pac-Man', 'Menja punts i esquiva ghosts!', 'from-yellow-400 to-yellow-600', 'yellow-900', best(pacmanRes), pacmanT3)}
+                ${renderCard('student_game_arkanoid', '🧱', 'Arkanoid', 'Trenca els maons ràpid!', 'from-rose-500 to-red-600', 'rose-900', best(arkanoidRes), arkanoidT3)}
+                ${renderCard('student_game_2048', '🔢', '2048', 'Combina fitxes fins al 2048!', 'from-slate-500 to-slate-700', 'slate-900', best(game2048Res), game2048T3)}
+                ${renderCard('student_game_pong', '🏓', 'Pong', 'Duel de pales. Passa la bola!', 'from-indigo-600 to-violet-800', 'indigo-900', best(pongRes), pongT3)}
+            `;
+
+        } catch(e) {
+            console.error(e);
+            grid.innerHTML = `<div class="col-span-full text-center text-red-500 p-10">Error carregant puntuacions globals.</div>`;
+        };
       }
 
       function renderSnakeGame(container) {
