@@ -381,6 +381,9 @@
           case "student_game_pong":
             renderPongGame(app);
             break;
+          case "student_game_tetris":
+            renderTetrisGame(app);
+            break;
           case "admin_dashboard":
             renderAdminDashboard(app);
             break;
@@ -1115,7 +1118,7 @@
               if(!allScores) throw new Error("No hi ha dades de jocs");
 
               // Agrupar per jocs
-              const games = ['SNAKE', 'SPACE', 'PACMAN', 'ARKANOID', '2048', 'PONG'];
+              const games = ['SNAKE', 'SPACE', 'PACMAN', 'ARKANOID', '2048', 'PONG', 'TETRIS'];
               const pointsPerUser = {};
 
               games.forEach(gameName => {
@@ -1435,6 +1438,7 @@
             const arkanoidT3 = getT3('ARKANOID');
             const game2048T3 = getT3('2048');
             const pongT3 = getT3('PONG');
+            const tetrisT3 = getT3('TETRIS');
 
             const snakeRes = (state.gameScores || []).filter(r => r.game === 'SNAKE');
             const spaceRes = (state.gameScores || []).filter(r => r.game === 'SPACE');
@@ -1442,6 +1446,7 @@
             const arkanoidRes = (state.gameScores || []).filter(r => r.game === 'ARKANOID');
             const game2048Res = (state.gameScores || []).filter(r => r.game === '2048');
             const pongRes = (state.gameScores || []).filter(r => r.game === 'PONG');
+            const tetrisRes = (state.gameScores || []).filter(r => r.game === 'TETRIS');
             
             const best = (res) => res.length > 0 ? Math.max(...res.map(r => r.score)) : 0;
 
@@ -1487,6 +1492,7 @@
                 ${renderCard('student_game_arkanoid', '🧱', 'Arkanoid', 'Trenca els maons ràpid!', 'from-rose-500 to-red-600', 'rose-900', best(arkanoidRes), arkanoidT3)}
                 ${renderCard('student_game_2048', '🔢', '2048', 'Combina fitxes fins al 2048!', 'from-slate-500 to-slate-700', 'slate-900', best(game2048Res), game2048T3)}
                 ${renderCard('student_game_pong', '🏓', 'Pong', 'Duel de pales. Passa la bola!', 'from-indigo-600 to-violet-800', 'indigo-900', best(pongRes), pongT3)}
+                ${renderCard('student_game_tetris', '🟦', 'Tetris', 'Encaixa les peces i supera-te!', 'from-cyan-500 to-blue-700', 'cyan-900', best(tetrisRes), tetrisT3)}
             `;
 
         } catch(e) {
@@ -2823,6 +2829,328 @@
           }, { passive: true });
 
           window.reset2048();
+      }
+
+      function renderTetrisGame(container) {
+        container.innerHTML = `
+          <div class="w-full h-full bg-gray-950 flex flex-col items-center justify-start p-4 overflow-y-auto select-none animate-fade-in text-white font-mono">
+            <header class="w-full max-w-2xl flex justify-between items-center mb-4">
+              <button onclick="window.navigateTo('student_games_menu')" id="tetris-back-btn" class="bg-white/10 p-2 text-white rounded-lg hover:bg-white/20 transition">${Icons.Back}</button>
+              <h2 class="text-3xl font-black tracking-widest text-cyan-400">🟦 TETRIS</h2>
+              <div class="text-right">
+                <div class="text-xs text-gray-400 uppercase tracking-widest">Punts</div>
+                <div class="text-2xl font-black text-white" id="tetris-score">0</div>
+                <div class="text-xs text-gray-400">Nivell: <span id="tetris-level" class="text-cyan-300 font-bold">1</span></div>
+              </div>
+            </header>
+            <div class="flex gap-6 items-start">
+              <div class="flex flex-col gap-4">
+                <canvas id="tetris-canvas" width="200" height="400" class="border-2 border-cyan-900 rounded-lg shadow-2xl shadow-cyan-900/50"></canvas>
+                <div class="grid grid-cols-3 gap-2 md:hidden">
+                  <button onclick="tetrisMoveLeft()" class="bg-gray-800 text-white p-3 rounded-xl text-xl">◀</button>
+                  <button onclick="tetrisMoveDown()" class="bg-gray-800 text-white p-3 rounded-xl text-xl">▼</button>
+                  <button onclick="tetrisMoveRight()" class="bg-gray-800 text-white p-3 rounded-xl text-xl">▶</button>
+                  <div></div>
+                  <button onclick="tetrisRotate()" class="bg-cyan-700 text-white p-3 rounded-xl text-xl col-start-2">↻</button>
+                  <div></div>
+                </div>
+              </div>
+              <div class="flex flex-col gap-4 min-w-[100px]">
+                <div class="bg-gray-900 rounded-xl p-3 border border-gray-800">
+                  <div class="text-xs text-gray-400 uppercase tracking-widest mb-2">Següent</div>
+                  <canvas id="tetris-next-canvas" width="80" height="80"></canvas>
+                </div>
+                <div class="bg-gray-900 rounded-xl p-3 border border-gray-800 text-center">
+                  <div class="text-xs text-gray-400 mb-1">Línies</div>
+                  <div class="text-xl font-black text-cyan-400" id="tetris-lines">0</div>
+                </div>
+                <button onclick="tetrisTogglePause()" id="tetris-pause-btn" class="bg-gray-800 hover:bg-gray-700 transition p-2 rounded-xl text-xs font-bold text-gray-300 border border-gray-700">⏸ Pausa</button>
+                <div class="text-xs text-gray-500 text-center leading-relaxed hidden md:block">
+                  <div>← → Moure</div>
+                  <div>↑ Rotar</div>
+                  <div>↓ Baixar</div>
+                  <div>Espai: Caure</div>
+                  <div>P: Pausa</div>
+                </div>
+              </div>
+            </div>
+            <div id="tetris-overlay" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+              <div class="bg-gray-900 rounded-3xl p-10 text-center border border-cyan-900 shadow-2xl">
+                <div id="tetris-overlay-title" class="text-4xl font-black mb-2"></div>
+                <div id="tetris-overlay-score" class="text-xl text-cyan-400 mb-6"></div>
+                <button onclick="tetrisRestart()" class="bg-cyan-600 hover:bg-cyan-500 text-white font-black px-8 py-3 rounded-xl transition mr-3">Tornar a jugar</button>
+                <button onclick="window.navigateTo('student_games_menu')" class="bg-gray-700 hover:bg-gray-600 text-white font-black px-8 py-3 rounded-xl transition">Sortir</button>
+              </div>
+            </div>
+          </div>
+        `;
+
+        // ---- TETRIS LOGIC ----
+        const COLS = 10, ROWS = 20;
+        const BLOCK = 20;
+        const canvas = document.getElementById('tetris-canvas');
+        const ctx = canvas.getContext('2d');
+        const nextCanvas = document.getElementById('tetris-next-canvas');
+        const nextCtx = nextCanvas.getContext('2d');
+
+        const COLORS = ['#00f5ff','#f7971e','#7b2ff7','#00e676','#ff4081','#ffea00','#ff6d00'];
+        const PIECES = [
+          [[1,1,1,1]],                          // I - cian
+          [[1,1],[1,1]],                         // O - taronja
+          [[0,1,0],[1,1,1]],                     // T - morad
+          [[1,0],[1,0],[1,1]],                   // L - verd
+          [[0,1],[0,1],[1,1]],                   // J - rosa
+          [[0,1,1],[1,1,0]],                     // S - groc
+          [[1,1,0],[0,1,1]],                     // Z - taronja fosc
+        ];
+
+        let board, currentPiece, nextPiece, score, lines, level, gameOver, paused, animId, dropInterval, lastDrop;
+
+        function newBoard() {
+          return Array.from({length: ROWS}, () => Array(COLS).fill(0));
+        }
+
+        function randomPiece() {
+          const i = Math.floor(Math.random() * PIECES.length);
+          return { shape: PIECES[i].map(r => [...r]), colorIdx: i, x: Math.floor(COLS/2) - Math.ceil(PIECES[i][0].length/2), y: 0 };
+        }
+
+        function isValid(piece, dx=0, dy=0, shape=null) {
+          const s = shape || piece.shape;
+          for (let r = 0; r < s.length; r++) {
+            for (let c = 0; c < s[r].length; c++) {
+              if (!s[r][c]) continue;
+              const nx = piece.x + c + dx;
+              const ny = piece.y + r + dy;
+              if (nx < 0 || nx >= COLS || ny >= ROWS) return false;
+              if (ny >= 0 && board[ny][nx]) return false;
+            }
+          }
+          return true;
+        }
+
+        function rotate(shape) {
+          return shape[0].map((_, i) => shape.map(r => r[i]).reverse());
+        }
+
+        function placePiece() {
+          currentPiece.shape.forEach((row, r) => {
+            row.forEach((v, c) => {
+              if (v) {
+                const bx = currentPiece.x + c, by = currentPiece.y + r;
+                if (by >= 0) board[by][bx] = currentPiece.colorIdx + 1;
+              }
+            });
+          });
+        }
+
+        function clearLines() {
+          let cleared = 0;
+          for (let r = ROWS - 1; r >= 0; r--) {
+            if (board[r].every(v => v)) {
+              board.splice(r, 1);
+              board.unshift(Array(COLS).fill(0));
+              cleared++;
+              r++;
+            }
+          }
+          if (cleared > 0) {
+            const pts = [0, 100, 300, 500, 800][cleared] * level;
+            score += pts;
+            lines += cleared;
+            level = Math.floor(lines / 10) + 1;
+            dropInterval = Math.max(100, 700 - (level - 1) * 60);
+            document.getElementById('tetris-score').textContent = score;
+            document.getElementById('tetris-level').textContent = level;
+            document.getElementById('tetris-lines').textContent = lines;
+          }
+        }
+
+        function ghostY() {
+          let gy = currentPiece.y;
+          while (isValid(currentPiece, 0, gy - currentPiece.y + 1)) gy++;
+          return gy;
+        }
+
+        function drawBlock(ctx, x, y, colorIdx, alpha=1) {
+          const color = COLORS[colorIdx - 1] || '#fff';
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = color;
+          ctx.fillRect(x * BLOCK + 1, y * BLOCK + 1, BLOCK - 2, BLOCK - 2);
+          ctx.fillStyle = 'rgba(255,255,255,0.25)';
+          ctx.fillRect(x * BLOCK + 1, y * BLOCK + 1, BLOCK - 2, 4);
+          ctx.globalAlpha = 1;
+        }
+
+        function drawBoard() {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = '#0a0a1a';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          // Grid
+          ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+          ctx.lineWidth = 0.5;
+          for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+              ctx.strokeRect(c * BLOCK, r * BLOCK, BLOCK, BLOCK);
+            }
+          }
+
+          // Board
+          board.forEach((row, r) => {
+            row.forEach((v, c) => {
+              if (v) drawBlock(ctx, c, r, v);
+            });
+          });
+
+          // Ghost piece
+          if (!gameOver && currentPiece) {
+            const gy = ghostY();
+            currentPiece.shape.forEach((row, r) => {
+              row.forEach((v, c) => {
+                if (v) drawBlock(ctx, currentPiece.x + c, gy + r, currentPiece.colorIdx + 1, 0.18);
+              });
+            });
+
+            // Current piece
+            currentPiece.shape.forEach((row, r) => {
+              row.forEach((v, c) => {
+                if (v) drawBlock(ctx, currentPiece.x + c, currentPiece.y + r, currentPiece.colorIdx + 1);
+              });
+            });
+          }
+        }
+
+        function drawNext() {
+          nextCtx.clearRect(0, 0, 80, 80);
+          nextCtx.fillStyle = '#0a0a1a';
+          nextCtx.fillRect(0, 0, 80, 80);
+          const s = nextPiece.shape;
+          const offX = Math.floor((4 - s[0].length) / 2);
+          const offY = Math.floor((4 - s.length) / 2);
+          s.forEach((row, r) => {
+            row.forEach((v, c) => {
+              if (v) {
+                nextCtx.fillStyle = COLORS[nextPiece.colorIdx];
+                nextCtx.fillRect((offX + c) * 18 + 5, (offY + r) * 18 + 5, 16, 16);
+              }
+            });
+          });
+        }
+
+        function endGame() {
+          gameOver = true;
+          cancelAnimationFrame(animId);
+          const overlay = document.getElementById('tetris-overlay');
+          if (!overlay) return;
+          overlay.classList.remove('hidden');
+          overlay.style.display = 'flex';
+          document.getElementById('tetris-overlay-title').textContent = '💀 GAME OVER';
+          document.getElementById('tetris-overlay-score').textContent = `Puntuació: ${score}`;
+          window.saveGameRecord('TETRIS', score).then(isRecord => {
+            const el = document.getElementById('tetris-overlay-score');
+            if (el) el.textContent = `Puntuació: ${score}${isRecord ? ' 🏆 NOU RÈCORD!' : ''}`;
+          });
+        }
+
+        function gameLoop(ts) {
+          if (paused || gameOver) return;
+          if (ts - lastDrop > dropInterval) {
+            lastDrop = ts;
+            if (isValid(currentPiece, 0, 1)) {
+              currentPiece.y++;
+            } else {
+              placePiece();
+              clearLines();
+              currentPiece = nextPiece;
+              nextPiece = randomPiece();
+              drawNext();
+              if (!isValid(currentPiece)) {
+                endGame();
+                return;
+              }
+            }
+          }
+          drawBoard();
+          animId = requestAnimationFrame(gameLoop);
+        }
+
+        function tetrisStart() {
+          board = newBoard();
+          score = 0; lines = 0; level = 1; gameOver = false; paused = false;
+          dropInterval = 700; lastDrop = 0;
+          currentPiece = randomPiece();
+          nextPiece = randomPiece();
+          document.getElementById('tetris-score').textContent = '0';
+          document.getElementById('tetris-level').textContent = '1';
+          document.getElementById('tetris-lines').textContent = '0';
+          const overlay = document.getElementById('tetris-overlay');
+          if (overlay) { overlay.classList.add('hidden'); overlay.style.display = 'none'; }
+          drawNext();
+          animId = requestAnimationFrame(gameLoop);
+        }
+
+        window.tetrisMoveLeft  = () => { if (!paused && !gameOver && isValid(currentPiece, -1, 0)) { currentPiece.x--; drawBoard(); }};
+        window.tetrisMoveRight = () => { if (!paused && !gameOver && isValid(currentPiece, 1, 0)) { currentPiece.x++; drawBoard(); }};
+        window.tetrisMoveDown  = () => {
+          if (!paused && !gameOver) {
+            if (isValid(currentPiece, 0, 1)) { currentPiece.y++; score += 1; document.getElementById('tetris-score').textContent = score; drawBoard(); }
+          }
+        };
+        window.tetrisRotate = () => {
+          if (!paused && !gameOver) {
+            const rot = rotate(currentPiece.shape);
+            if (isValid(currentPiece, 0, 0, rot)) {
+              currentPiece.shape = rot;
+            } else if (isValid(currentPiece, 1, 0, rot)) {
+              currentPiece.x++; currentPiece.shape = rot;
+            } else if (isValid(currentPiece, -1, 0, rot)) {
+              currentPiece.x--; currentPiece.shape = rot;
+            }
+            drawBoard();
+          }
+        };
+        window.tetrisHardDrop = () => {
+          if (!paused && !gameOver) {
+            const gy = ghostY();
+            score += (gy - currentPiece.y) * 2;
+            currentPiece.y = gy;
+            document.getElementById('tetris-score').textContent = score;
+            placePiece();
+            clearLines();
+            currentPiece = nextPiece;
+            nextPiece = randomPiece();
+            drawNext();
+            if (!isValid(currentPiece)) { endGame(); return; }
+            drawBoard();
+          }
+        };
+        window.tetrisTogglePause = () => {
+          if (gameOver) return;
+          paused = !paused;
+          const btn = document.getElementById('tetris-pause-btn');
+          if (btn) btn.textContent = paused ? '▶ Continuar' : '⏸ Pausa';
+          if (!paused) { lastDrop = performance.now(); animId = requestAnimationFrame(gameLoop); }
+        };
+        window.tetrisRestart = tetrisStart;
+
+        const keyHandler = (e) => {
+          if (!document.getElementById('tetris-canvas')) { document.removeEventListener('keydown', keyHandler); return; }
+          if (e.key === 'ArrowLeft')  { e.preventDefault(); window.tetrisMoveLeft(); }
+          if (e.key === 'ArrowRight') { e.preventDefault(); window.tetrisMoveRight(); }
+          if (e.key === 'ArrowDown')  { e.preventDefault(); window.tetrisMoveDown(); }
+          if (e.key === 'ArrowUp')    { e.preventDefault(); window.tetrisRotate(); }
+          if (e.key === ' ')          { e.preventDefault(); window.tetrisHardDrop(); }
+          if (e.key === 'p' || e.key === 'P') { window.tetrisTogglePause(); }
+        };
+        document.addEventListener('keydown', keyHandler);
+
+        document.getElementById('tetris-back-btn').addEventListener('click', () => {
+          cancelAnimationFrame(animId);
+          document.removeEventListener('keydown', keyHandler);
+        });
+
+        tetrisStart();
       }
 
       function renderPongGame(container) {
