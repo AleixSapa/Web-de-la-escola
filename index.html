@@ -183,6 +183,17 @@
          }
        };
 
+       window.deleteLoginLog = async (id) => {
+         if (!confirm("Vols eliminar aquest registre?")) return;
+         const { error } = await supabase.from("user_logins").delete().eq("id", id);
+         if (!error) {
+           state.userLogins = state.userLogins.filter(l => l.id !== id);
+           renderApp();
+         } else {
+           alert("Error eliminant el registre: " + error.message);
+         }
+       };
+
       // --- ICONES SVG ---
       const Icons = {
         User: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.108a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.642Z" /></svg>`,
@@ -225,6 +236,14 @@
             if (loginsData) state.userLogins = loginsData;
           } catch (e) {
             console.warn("Taula user_logins no trobada");
+          }
+
+          // Recuperar errors reportats de Supabase
+          try {
+            const { data: errorsData } = await supabase.from("reported_errors").select("*").order("created_at", { ascending: false });
+            if (errorsData) state.reportedErrors = errorsData;
+          } catch (e) {
+            console.warn("Taula reported_errors no trobada");
           }
 
           // Recuperar sessió guardada
@@ -2166,6 +2185,7 @@
                   </div>
                   <div class="flex flex-col items-end">
                     <div class="text-xl font-mono text-orange-400" id="ark-score">0000</div>
+                    <div class="flex gap-1 text-xs" id="ark-lives"></div>
                   </div>
               </header>
               <div class="relative bg-black rounded-lg border-4 border-slate-700 overflow-hidden shadow-2xl">
@@ -2187,11 +2207,17 @@
           const canvas = document.getElementById('arkanoidCanvas');
           const ctx = canvas.getContext('2d');
           const scoreElement = document.getElementById('ark-score');
+          const livesElement = document.getElementById('ark-lives');
           const startMsg = document.getElementById('ark-start-msg');
 
           let score = 0;
           let gameActive = false;
           let lives = 3;
+
+          function updateArkLives() {
+              livesElement.innerHTML = "❤️".repeat(lives);
+          }
+          updateArkLives();
           
           let paddle = { x: 140, y: 380, w: 100, h: 10, color: '#fb923c', speed: 8, dx: 0 };
           let ball = { x: 190, y: 370, r: 6, color: '#fff', dx: 0, dy: 0, speed: 4, attached: true };
@@ -2280,6 +2306,7 @@
                       ball.dx = 0;
                       ball.dy = 0;
                       lives--;
+                      updateArkLives();
                       if (lives <= 0) {
                           gameActive = false;
                           window.saveGameRecord('ARKANOID', score).then(isRecord => {
@@ -2301,6 +2328,11 @@
                               if (bricks.filter(brick => brick.status === 1).length === 0) {
                                   initBricks();
                                   ball.speed += 0.5;
+                                  // +1 Vida (màxim 5)
+                                  if (lives < 5) {
+                                      lives++;
+                                      updateArkLives();
+                                  }
                                   // Escalem la velocitat actual
                                   const mag = Math.sqrt(ball.dx*ball.dx + ball.dy*ball.dy);
                                   ball.dx = (ball.dx / mag) * ball.speed;
@@ -2749,6 +2781,7 @@
                                         <th class="p-3">Usuari</th>
                                         <th class="p-3">Nom</th>
                                         <th class="p-3">Rol</th>
+                                        <th class="p-3 text-right">Accions</th>
                                     </tr>
                                 </thead>
                                 <tbody class="text-xs">
@@ -2763,6 +2796,11 @@
                                                 <td class="p-3 font-bold text-indigo-700">@${l.username}</td>
                                                 <td class="p-3">${l.name}</td>
                                                 <td class="p-3"><span class="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 font-bold text-[10px]">${l.role}</span></td>
+                                                <td class="p-3 text-right">
+                                                    <button onclick="window.deleteLoginLog(${l.id})" class="text-red-400 hover:text-red-600 transition p-1">
+                                                        ${Icons.Trash}
+                                                    </button>
+                                                </td>
                                             </tr>`;
                                         }).join("")}
                                 </tbody>
@@ -3236,14 +3274,8 @@
                         </tr>
                     </thead>
                     <tbody class="text-sm">
-                        ${state.reportedErrors.filter(e => {
-                          const reporter = state.users.find(u => u.username === (e.user_username || e.user));
-                          return reporter && (reporter.role === 'Alumne' || reporter.role === 'Professor');
-                        }).length === 0 ? '<tr><td colspan="5" class="p-4 text-center text-gray-400 italic">No hi ha errors per gestionar (només es mostren els d\'Alumnes i Professors normals).</td></tr>' : 
-                            state.reportedErrors.filter(e => {
-                              const reporter = state.users.find(u => u.username === (e.user_username || e.user));
-                              return reporter && (reporter.role === 'Alumne' || reporter.role === 'Professor');
-                            }).map(e => {
+                        ${state.reportedErrors.length === 0 ? '<tr><td colspan="5" class="p-4 text-center text-gray-400 italic">No hi ha errors per gestionar.</td></tr>' : 
+                            state.reportedErrors.map(e => {
                                 let statusClass = "bg-yellow-100 text-yellow-700";
                                 let statusLabel = "Pendent";
                                 if (e.status === 'solucionant') {
