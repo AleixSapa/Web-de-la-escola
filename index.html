@@ -362,6 +362,9 @@
           case "student_game_arkanoid":
             renderArkanoidGame(app);
             break;
+          case "student_game_2048":
+            render2048Game(app);
+            break;
           case "admin_dashboard":
             renderAdminDashboard(app);
             break;
@@ -1077,7 +1080,8 @@
               if(!allScores) throw new Error("No hi ha dades");
 
               // Agrupar per jocs
-              const games = ['SNAKE', 'SPACE', 'PACMAN', 'ARKANOID'];
+              // Agrupar per jocs
+              const games = ['SNAKE', 'SPACE', 'PACMAN', 'ARKANOID', '2048'];
               const pointsPerUser = {};
 
               games.forEach(gameName => {
@@ -1174,6 +1178,12 @@
                   .order('score', { ascending: false })
                   .limit(3);
 
+              const { data: game2048Data } = await supabase.from('game_scores')
+                  .select('student_username, score')
+                  .eq('game', '2048')
+                  .order('score', { ascending: false })
+                  .limit(3);
+
               const snakeHtml = (snakeData || []).map((p, i) => `
                   <div class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
                       <div class="flex items-center gap-2">
@@ -1243,6 +1253,20 @@
                                     `).join('') || '<p class="text-sm text-gray-400 italic py-2">Encara no hi ha rècords.</p>'}
                                 </div>
                             </div>
+                            <div>
+                                <h4 class="text-lg font-bold mb-3 flex items-center gap-2 text-slate-700"><span class="text-2xl">🔢</span> Top 2048</h4>
+                                <div class="bg-gray-50 rounded-xl p-4 border border-gray-100 shadow-inner">
+                                    ${(game2048Data || []).map((p, i) => `
+                                        <div class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
+                                            <div class="flex items-center gap-2">
+                                               <span class="text-xl font-bold w-6 text-center ${i===0?'text-yellow-500':i===1?'text-gray-400':i===2?'text-orange-400':''}">${i+1}</span>
+                                               <span class="font-medium text-gray-800">@${p.student_username}</span>
+                                            </div>
+                                            <span class="font-mono font-bold text-slate-600">${p.score}</span>
+                                        </div>
+                                    `).join('') || '<p class="text-sm text-gray-400 italic py-2">Encara no hi ha rècords.</p>'}
+                                </div>
+                            </div>
                       </div>
                   </div>
               `;
@@ -1264,10 +1288,12 @@
         const spaceRes = (state.gameScores || []).filter(r => r.game === 'SPACE');
         const pacmanRes = (state.gameScores || []).filter(r => r.game === 'PACMAN');
         const arkanoidRes = (state.gameScores || []).filter(r => r.game === 'ARKANOID');
+        const game2048Res = (state.gameScores || []).filter(r => r.game === '2048');
         const bestSnake = snakeRes.length > 0 ? Math.max(...snakeRes.map(r => r.score)) : 0;
         const bestSpace = spaceRes.length > 0 ? Math.max(...spaceRes.map(r => r.score)) : 0;
         const bestPacman = pacmanRes.length > 0 ? Math.max(...pacmanRes.map(r => r.score)) : 0;
         const bestArkanoid = arkanoidRes.length > 0 ? Math.max(...arkanoidRes.map(r => r.score)) : 0;
+        const best2048 = game2048Res.length > 0 ? Math.max(...game2048Res.map(r => r.score)) : 0;
 
         container.innerHTML = `
           <div class="w-full h-full bg-gray-50 overflow-y-auto p-4 md:p-8 animate-fade-in">
@@ -1313,6 +1339,13 @@
                       <h3 class="text-2xl font-bold mb-2">Arkanoid</h3>
                       <p class="text-red-100">Trenca tots els maons abans que caigui la pilota!</p>
                       <div class="mt-4 bg-red-800 rounded-full px-4 py-1 text-sm font-bold">Rècord: ${bestArkanoid}</div>
+                  </button>
+
+                  <button onclick="window.navigateTo('student_game_2048')" class="bg-gradient-to-br from-slate-500 to-slate-700 p-8 rounded-3xl shadow-lg hover:shadow-xl hover:-translate-y-1 transition duration-300 flex flex-col items-center text-center text-white">
+                      <div class="text-6xl mb-4">🔢</div>
+                      <h3 class="text-2xl font-bold mb-2">2048</h3>
+                      <p class="text-slate-100">Combina les fitxes per arribar al número 2048!</p>
+                      <div class="mt-4 bg-slate-800 rounded-full px-4 py-1 text-sm font-bold">Rècord: ${best2048}</div>
                   </button>
               </div>
           </div>
@@ -2373,6 +2406,280 @@
               draw();
           }, 1000/60);
           state.currentGameInterval = gameIter;
+      }
+
+      function render2048Game(container) {
+          container.innerHTML = `
+            <style>
+              .tile-2048 {
+                position: absolute;
+                transition: all 150ms ease-in-out;
+                z-index: 10;
+              }
+              .tile-inner {
+                width: calc(100% - 8px);
+                height: calc(100% - 8px);
+                margin: 4px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 8px;
+                font-weight: 900;
+                font-size: 1.5rem;
+                animation: tile-pop 200ms ease-out;
+              }
+              @keyframes tile-pop {
+                0% { transform: scale(0); opacity: 0; }
+                100% { transform: scale(1); opacity: 1; }
+              }
+              .tile-merged .tile-inner {
+                animation: tile-merge 200ms ease-in-out;
+              }
+              @keyframes tile-merge {
+                0% { transform: scale(1); }
+                50% { transform: scale(1.15); }
+                100% { transform: scale(1); }
+              }
+            </style>
+            <div class="w-full h-full bg-slate-100 flex flex-col items-center p-4 overflow-y-auto animate-fade-in">
+              <header class="w-full max-w-sm flex justify-between items-center mb-6">
+                  <button onclick="window.navigateTo('student_games_menu')" class="bg-white p-2 text-slate-600 rounded-full shadow-sm hover:bg-gray-50 flex items-center justify-center">${Icons.Back}</button>
+                  <h2 class="text-4xl font-black text-slate-700 tracking-tighter">2048</h2>
+                  <div class="bg-slate-700 p-2 rounded-xl text-white text-center min-w-[70px] shadow-lg">
+                    <span class="block text-[8px] uppercase font-bold opacity-70">Punts</span>
+                    <span class="text-lg font-bold font-mono leading-none" id="score-2048">0</span>
+                  </div>
+              </header>
+
+              <div id="game-2048-container" class="relative p-1 bg-slate-400 rounded-xl shadow-2xl select-none touch-none aspect-square w-full max-w-[360px]">
+                <!-- Background grid -->
+                <div class="grid grid-cols-4 grid-rows-4 gap-0 w-full h-full absolute inset-0 p-1 pointer-events-none">
+                   ${Array(16).fill('<div class="m-1 bg-slate-300/50 rounded-lg"></div>').join('')}
+                </div>
+                <!-- Tiles container -->
+                <div id="tiles-2048" class="relative w-full h-full"></div>
+              </div>
+
+              <div class="mt-6 flex flex-col items-center gap-4 w-full max-w-sm">
+                 <div class="grid grid-cols-2 gap-3 w-full">
+                    <button onclick="window.reset2048()" class="bg-slate-700 text-white py-3 rounded-xl font-bold shadow-lg hover:bg-slate-800 transition active:scale-95">REPETIR 🔄</button>
+                    <button onclick="window.navigateTo('student_games_menu')" class="bg-white border border-slate-200 text-slate-600 py-3 rounded-xl font-bold shadow-sm hover:bg-gray-50 transition active:scale-95">SORTIR 👋</button>
+                 </div>
+                 <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest text-center mt-2 px-6">Llisca o usa les fletxes per moure les fitxes i fusiona números iguals!</p>
+              </div>
+            </div>
+          `;
+
+          const tilesElement = document.getElementById('tiles-2048');
+          const scoreElement = document.getElementById('score-2048');
+          
+          let tiles = []; // { id, val, r, c, merged: bool }
+          let nextId = 1;
+          let score = 0;
+          let gameActive = true;
+
+          function getTileColor(val) {
+              if (val === 2) return "bg-slate-50 text-slate-600";
+              if (val === 4) return "bg-orange-50 text-slate-600";
+              if (val === 8) return "bg-orange-200 text-white";
+              if (val === 16) return "bg-orange-400 text-white";
+              if (val === 32) return "bg-orange-500 text-white";
+              if (val === 64) return "bg-orange-600 text-white";
+              if (val === 128) return "bg-yellow-300 text-white text-xl shadow-lg";
+              if (val === 256) return "bg-yellow-400 text-white text-xl shadow-xl";
+              if (val === 512) return "bg-yellow-500 text-white text-xl shadow-xl";
+              if (val === 1024) return "bg-yellow-600 text-white text-lg";
+              if (val >= 2048) return "bg-slate-800 text-white text-lg animate-pulse";
+              return "bg-slate-800 text-white";
+          }
+
+          function addRandomTile() {
+              const occupied = tiles.map(t => t.r * 4 + t.c);
+              const empty = [];
+              for(let i=0; i<16; i++) if(!occupied.includes(i)) empty.push(i);
+              
+              if (empty.length > 0) {
+                  const idx = empty[Math.floor(Math.random() * empty.length)];
+                  tiles.push({
+                      id: nextId++,
+                      val: Math.random() < 0.9 ? 2 : 4,
+                      r: Math.floor(idx / 4),
+                      c: idx % 4,
+                      merged: false
+                  });
+              }
+          }
+
+          function renderTiles() {
+              // Update score
+              scoreElement.innerText = score;
+
+              // Sync DOM elements
+              const currentElements = Array.from(tilesElement.children);
+              const tileIds = tiles.map(t => t.id.toString());
+
+              // Remove old ones
+              currentElements.forEach(el => {
+                  if (!tileIds.includes(el.dataset.id)) {
+                      el.remove();
+                  }
+              });
+
+              // Update or Create
+              tiles.forEach(t => {
+                  let el = currentElements.find(e => e.dataset.id === t.id.toString());
+                  if (!el) {
+                      el = document.createElement('div');
+                      el.dataset.id = t.id;
+                      el.className = 'tile-2048';
+                      el.innerHTML = `<div class="tile-inner"></div>`;
+                      tilesElement.appendChild(el);
+                  }
+                  
+                  el.style.width = '25%';
+                  el.style.height = '25%';
+                  el.style.top = (t.r * 25) + '%';
+                  el.style.left = (t.c * 25) + '%';
+                  
+                  const inner = el.querySelector('.tile-inner');
+                  inner.innerText = t.val;
+                  inner.className = `tile-inner ${getTileColor(t.val)}`;
+                  
+                  if (t.merged) {
+                      el.classList.add('tile-merged');
+                  } else {
+                      el.classList.remove('tile-merged');
+                  }
+              });
+          }
+
+          function move(dir) {
+              let moved = false;
+              tiles.forEach(t => t.merged = false);
+
+              const rows = [0,1,2,3];
+              const cols = [0,1,2,3];
+
+              // Orient maps to help iterate
+              if (dir === 'RIGHT') cols.reverse();
+              if (dir === 'DOWN') rows.reverse();
+
+              const horizontal = (dir === 'LEFT' || dir === 'RIGHT');
+
+              const lines = horizontal ? rows : cols;
+              const perLine = horizontal ? cols : rows;
+
+              lines.forEach(l => {
+                  let lineTiles = tiles.filter(t => (horizontal ? t.r : t.c) === l);
+                  lineTiles.sort((a, b) => {
+                      const valA = horizontal ? a.c : a.r;
+                      const valB = horizontal ? b.c : b.r;
+                      return (dir === 'RIGHT' || dir === 'DOWN') ? valB - valA : valA - valB;
+                  });
+
+                  let targetPos = (dir === 'RIGHT' || dir === 'DOWN') ? 3 : 0;
+                  let lastTile = null;
+
+                  lineTiles.forEach(t => {
+                      if (lastTile && lastTile.val === t.val && !lastTile.merged) {
+                          // Merge
+                          score += t.val * 2;
+                          lastTile.val *= 2;
+                          lastTile.merged = true;
+                          // Remove current tile (it slides into lastTile)
+                          tiles = tiles.filter(tile => tile.id !== t.id);
+                          t.r = lastTile.r; // Visual target for sliding
+                          t.c = lastTile.c;
+                          moved = true;
+                      } else {
+                          // Slide to targetPos
+                          const oldR = t.r;
+                          const oldC = t.c;
+                          if (horizontal) t.c = targetPos;
+                          else t.r = targetPos;
+                          
+                          if (t.r !== oldR || t.c !== oldC) moved = true;
+                          
+                          lastTile = t;
+                          targetPos += (dir === 'RIGHT' || dir === 'DOWN') ? -1 : 1;
+                      }
+                  });
+              });
+
+              if (moved && gameActive) {
+                  renderTiles(); // First render to show sliding
+                  setTimeout(() => {
+                      if (!gameActive) return;
+                      addRandomTile();
+                      renderTiles();
+                      checkGameOver();
+                  }, 150);
+              }
+          }
+
+          function checkGameOver() {
+              if (tiles.length < 16) return;
+              // Check if any merges possible
+              for(let r=0; r<4; r++) {
+                  for(let c=0; c<4; c++) {
+                      const t = tiles.find(tile => tile.r === r && tile.c === c);
+                      const right = tiles.find(tile => tile.r === r && tile.c === c+1);
+                      const down = tiles.find(tile => tile.r === r+1 && tile.c === c);
+                      if (right && right.val === t.val) return;
+                      if (down && down.val === t.val) return;
+                  }
+              }
+              if (!gameActive) return;
+              gameActive = false;
+              window.saveGameRecord('2048', score).then(isRecord => {
+                  alert(`Joc acabat! Puntuació: ${score}${isRecord ? ' (Nou Rècord!)' : ''}`);
+                  document.removeEventListener('keydown', keyHandler);
+                  window.navigateTo('student_games_menu');
+              });
+          }
+
+          window.reset2048 = () => {
+              tiles = [];
+              score = 0;
+              nextId = 1;
+              gameActive = true;
+              addRandomTile();
+              addRandomTile();
+              renderTiles();
+          };
+
+          const keyHandler = (e) => {
+              if (state.view !== 'student_game_2048') {
+                  document.removeEventListener('keydown', keyHandler);
+                  return;
+              }
+              if (e.key.startsWith('Arrow') || ['a','w','s','d'].includes(e.key.toLowerCase())) {
+                  e.preventDefault();
+                  if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') move('LEFT');
+                  if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') move('RIGHT');
+                  if (e.key === 'ArrowUp' || e.key.toLowerCase() === 'w') move('UP');
+                  if (e.key === 'ArrowDown' || e.key.toLowerCase() === 's') move('DOWN');
+              }
+          };
+          document.addEventListener('keydown', keyHandler);
+
+          let tsX = 0, tsY = 0;
+          const gameContainer = document.getElementById('game-2048-container');
+          gameContainer.addEventListener('touchstart', e => {
+              tsX = e.touches[0].clientX;
+              tsY = e.touches[0].clientY;
+          }, { passive: false });
+          gameContainer.addEventListener('touchend', e => {
+              const dx = e.changedTouches[0].clientX - tsX;
+              const dy = e.changedTouches[0].clientY - tsY;
+              if (Math.abs(dx) > Math.abs(dy)) {
+                  if (Math.abs(dx) > 30) move(dx > 0 ? 'RIGHT' : 'LEFT');
+              } else {
+                  if (Math.abs(dy) > 30) move(dy > 0 ? 'DOWN' : 'UP');
+              }
+          }, { passive: true });
+
+          window.reset2048();
       }
 
       function renderStudentTestResults(container) {
