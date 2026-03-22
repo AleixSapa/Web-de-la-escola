@@ -4,6 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Portal Escolar</title>
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="./manifest.json" />
+    <meta name="theme-color" content="#1e40af" />
+    <link rel="apple-touch-icon" href="./icon-192x192.png" />
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Supabase JS -->
@@ -80,6 +84,33 @@
     </div>
 
     <script type="module">
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("./sw.js").catch(console.error);
+        });
+      }
+
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        state.deferredPrompt = e;
+        state.canInstall = true;
+        
+        // If the user happens to have the app open and the prompt becomes available, re-render to show the button
+        if(typeof renderApp !== 'undefined') renderApp();
+      });
+
+      window.installApp = async () => {
+        if (state.deferredPrompt) {
+            state.deferredPrompt.prompt();
+            const { outcome } = await state.deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+                state.canInstall = false;
+            }
+            state.deferredPrompt = null;
+            renderApp();
+        }
+      };
+
       // --- CONFIGURACIÓ ---
       const SUPABASE_URL = "https://hocwnqqdyyinjrtczhdw.supabase.co";
       const SUPABASE_KEY = "sb_publishable_X_TrrWex0GfBLIzbKFp1Cg_Xa97mziS";
@@ -137,6 +168,8 @@
         studentTitles: {}, // { username: ['Gamer'] }
         adminSelectedUser: null,
         viewExtraData: null,
+        canInstall: false,
+        deferredPrompt: null,
       };
 
       // --- UTILITATS: TELEGRAM ---
@@ -581,6 +614,10 @@
                         <button onclick="window.navigateTo('calendar')" class="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition">
                             ${Icons.Calendar} Calendari
                         </button>
+                        ${state.canInstall ? `
+                        <button onclick="window.installApp()" class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition font-bold shadow-lg shadow-blue-500/50 animate-bounce">
+                            ⬇️ Instal·lar App
+                        </button>` : ''}
                         <button onclick="window.logout()" class="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition">
                             ${Icons.Logout} Sortir
                         </button>
@@ -3782,6 +3819,10 @@
                             <button onclick="window.navigateTo('admin_database_manager')" class="flex items-center gap-2 px-4 py-2 bg-blue-800 text-white rounded-md hover:bg-blue-900 transition font-bold">
                                 🛠️ Base de Dades
                             </button>
+                            ${state.canInstall ? `
+                            <button onclick="window.installApp()" class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition font-bold shadow-lg shadow-blue-500/50 animate-bounce">
+                                ⬇️ Instal·lar App
+                            </button>` : ''}
                              <button onclick="window.logout()" class="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm font-bold">${
                                Icons.Logout
                              } Sortir</button>
