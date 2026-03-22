@@ -136,6 +136,7 @@
         userLogins: [], // Registre d'entrades
         studentTitles: {}, // { username: ['Gamer'] }
         adminSelectedUser: null,
+        viewExtraData: null,
       };
 
       // --- UTILITATS: TELEGRAM ---
@@ -546,6 +547,12 @@
       function renderDashboard(container) {
         const user = state.currentUser;
 
+        const unreadCount = state.conversations.reduce((acc, conv) => {
+          if (!conv.participants.includes(user.username)) return acc;
+          return acc + (conv.messages || []).filter(m => m.sender !== user.username && (!m.readBy || !m.readBy.includes(user.username))).length;
+        }, 0);
+        const chatBadge = unreadCount > 0 ? `<span class="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full absolute -top-2 -right-2 animate-pulse border border-white">${unreadCount}</span>` : '';
+
         const header = `
                 <header class="bg-white shadow p-4 flex justify-between items-center mb-6">
                     <div>
@@ -563,8 +570,9 @@
                             </svg> Test Fútbol
                         </a>
 
-                        <button onclick="window.navigateTo('chat')" class="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition">
+                        <button onclick="window.navigateTo('chat')" class="relative flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition">
                             ${Icons.Chat} Xat
+                            ${chatBadge}
                         </button>
                         ${(state.currentUser.role !== "Administrador") ? `
                         <button onclick="window.navigateTo('error_reporting')" class="flex items-center gap-2 px-4 py-2 bg-red-800 text-white rounded-md hover:bg-red-900 transition">
@@ -3751,14 +3759,22 @@
 
       function renderAdminDashboard(container) {
         const groups = state.conversations.filter((c) => c.isGroup);
+        const user = state.currentUser;
+
+        const unreadCount = state.conversations.reduce((acc, conv) => {
+          if (!conv.participants.includes(user.username)) return acc;
+          return acc + (conv.messages || []).filter(m => m.sender !== user.username && (!m.readBy || !m.readBy.includes(user.username))).length;
+        }, 0);
+        const chatBadge = unreadCount > 0 ? `<span class="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full absolute -top-2 -right-2 animate-pulse border border-white">${unreadCount}</span>` : '';
 
         container.innerHTML = `
                 <div class="animate-fade-in w-full h-full bg-gray-100 p-6 overflow-y-auto">
                     <header class="flex justify-between items-center mb-8">
                         <h1 class="text-3xl font-bold text-gray-800">Panell d'Administrador</h1>
                         <div class="flex gap-2 flex-wrap">
-                            <button onclick="window.navigateTo('chat')" class="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition">
+                            <button onclick="window.navigateTo('chat')" class="relative flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition">
                                 ${Icons.Chat} Xat
+                                ${chatBadge}
                             </button>
                             <button onclick="window.navigateTo('calendar')" class="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition">
                                 ${Icons.Calendar} Calendari
@@ -4321,8 +4337,20 @@
                 </table>
             </div>
           </div>
+          </div>
           ` : ''}
         `;
+
+        if (state.viewExtraData && state.viewExtraData.preselectPage) {
+            const select = container.querySelector("#error-page");
+            if (select) {
+                const options = Array.from(select.options);
+                const match = options.find(o => o.value.toLowerCase().includes(state.viewExtraData.preselectPage.toLowerCase()));
+                if (match) {
+                    select.value = match.value;
+                }
+            }
+        }
       }
 
       window.submitError = async (e) => {
@@ -5185,7 +5213,11 @@
               c.id === state.currentChatId
                 ? "bg-blue-100"
                 : "hover:bg-gray-100";
-            return `<div class="p-4 border-b cursor-pointer transition ${isActive}" onclick="window.selectChat('${c.id}')"><h4 class="font-bold text-gray-800">${name}</h4></div>`;
+                
+            const chatUnreadCount = (c.messages || []).filter(m => m.sender !== user.username && (!m.readBy || !m.readBy.includes(user.username))).length;
+            const chatBadgeHtml = chatUnreadCount > 0 ? `<span class="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">${chatUnreadCount}</span>` : '';
+
+            return `<div class="p-4 border-b cursor-pointer transition ${isActive} flex justify-between items-center" onclick="window.selectChat('${c.id}')"><h4 class="font-bold text-gray-800">${name}</h4>${chatBadgeHtml}</div>`;
           })
           .join("");
 
@@ -5235,6 +5267,20 @@
                 </div>`;
 
         if (activeChat) {
+          let updatedRead = false;
+          activeChat.messages.forEach(m => {
+              if (m.sender !== user.username) {
+                  if (!m.readBy) m.readBy = [];
+                  if (!m.readBy.includes(user.username)) {
+                      m.readBy.push(user.username);
+                      updatedRead = true;
+                  }
+              }
+          });
+          if (updatedRead) {
+              supabase.from("conversations").upsert(activeChat).then(() => {});
+          }
+
           const sendBtn = document.getElementById("send-btn");
           const msgInput = document.getElementById("msg-input");
           const send = async () => {
@@ -5387,7 +5433,7 @@
       }
 
       // --- GLOBALS ---
-      window.navigateTo = (view) => {
+      window.navigateTo = (view, extraData = null) => {
         if (state.currentGameInterval) {
           clearInterval(state.currentGameInterval);
           state.currentGameInterval = null;
@@ -5396,6 +5442,7 @@
           clearInterval(state.currentSnakeTimer);
           state.currentSnakeTimer = null;
         }
+        state.viewExtraData = extraData;
         state.view = view;
         if (view === "teacher_exams") fetchTeacherExams();
         else if (view === "teacher_homework") fetchTeacherHomework();
