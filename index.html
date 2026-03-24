@@ -259,30 +259,21 @@
       // --- FUNCIONS PRINCIPALS ---
       async function initApp() {
         try {
-          const { data: usersData } = await supabase.from("users").select("*");
-          if (usersData) {
-            state.users = usersData;
-            state.students = usersData.filter((u) => u.role === "Alumne" || (u.role === "Betatester" && u.subject === "Alumne"));
-          }
+          // Parallel loading of essential minimal data
+          const [usersRes, convRes, loginsRes, errorsRes] = await Promise.all([
+            supabase.from("users").select("*"),
+            supabase.from("conversations").select("*"),
+            supabase.from("user_logins").select("*").order("created_at", { ascending: false }).limit(100),
+            supabase.from("reported_errors").select("*").order("created_at", { ascending: false })
+          ]);
 
-          const { data: convData } = await supabase.from("conversations").select("*");
-          if (convData) state.conversations = convData;
-
-          // Recuperar registre d'entrades de Supabase
-          try {
-            const { data: loginsData } = await supabase.from("user_logins").select("*").order("created_at", { ascending: false }).limit(100);
-            if (loginsData) state.userLogins = loginsData;
-          } catch (e) {
-            console.warn("Taula user_logins no trobada");
+          if (usersRes.data) {
+            state.users = usersRes.data;
+            state.students = usersRes.data.filter((u) => u.role === "Alumne" || (u.role === "Betatester" && u.subject === "Alumne"));
           }
-
-          // Recuperar errors reportats de Supabase
-          try {
-            const { data: errorsData } = await supabase.from("reported_errors").select("*").order("created_at", { ascending: false });
-            if (errorsData) state.reportedErrors = errorsData;
-          } catch (e) {
-            console.warn("Taula reported_errors no trobada");
-          }
+          if (convRes.data) state.conversations = convRes.data;
+          if (loginsRes.data) state.userLogins = loginsRes.data;
+          if (errorsRes.data) state.reportedErrors = errorsRes.data;
 
           // Recuperar sessió guardada
           const savedUsername = window.localStorage.getItem("activeUserPortal") || window.sessionStorage.getItem("activeUserPortal");
@@ -298,20 +289,30 @@
                    logLoginToDatabase(user);
                }
            }
-          await calculateStudentTitles();
+          
+          // Parallelize further initialization
+          await Promise.all([
+            calculateStudentTitles(),
+            updateGlobalNotificationDot()
+          ]);
+          
           renderApp();
         } catch (err) {
           console.error("Error inicialitzant:", err);
-          document.getElementById(
-            "app"
-          ).innerHTML = `<p class="text-red-500 text-center p-10">Error carregant l'aplicació.</p>`;
+          document.getElementById("app").innerHTML = `<p class="text-red-500 text-center p-10">Error carregant l'aplicació.</p>`;
         }
       }
 
       async function calculateStudentTitles() {
         try {
-          const { data: allScores } = await supabase.from('game_scores').select('*');
-          if (!allScores) return;
+          // Fetch critical tables for titles in parallel and only selecting needed columns
+          const [scoresRes, practiceRes] = await Promise.all([
+            supabase.from('game_scores').select('student_username, game, score'),
+            supabase.from('practice_results').select('student_username, score')
+          ]);
+          
+          if (!scoresRes.data) return;
+          const allScores = scoresRes.data;
 
           // Gamer: persona que és #1 en més jocs diferents
           const gameWinners = {}; // { GAME_TYPE: { username, score } }
@@ -342,8 +343,8 @@
           }
 
           // Practicador: persona amb més encerts totals de pràctiques
-          const { data: allPractice } = await supabase.from('practice_results').select('student_username, score');
-          if (allPractice && allPractice.length > 0) {
+          if (practiceRes.data && practiceRes.data.length > 0) {
+             const allPractice = practiceRes.data;
              const practiceTotalScores = {};
              allPractice.forEach(p => {
                  practiceTotalScores[p.student_username] = (practiceTotalScores[p.student_username] || 0) + p.score;
@@ -482,7 +483,8 @@
         }
         state.chatPoller = setInterval(async () => {
           if (!state.currentUser || state.isUpdatingChat) return;
-          const { data, error } = await supabase.from('conversations').select('*');
+          // IMPORTANT: Només demanem les nostres converses per estalviar ample de banda
+          const { data, error } = await supabase.from('conversations').select('*').contains('participants', [state.currentUser.username]);
           if (data && !error) {
              let hasNew = false;
              let shouldScroll = false;
@@ -5258,20 +5260,16 @@
         state.isLoadingData = true;
         renderApp();
         try {
-          const { data: pData } = await supabase.from("calendar_proposals").select("*");
-          state.calendarProposals = pData || [];
-        } catch (e) {}
-        try {
-          const { data: bData } = await supabase.from("birthdays").select("*");
-          state.birthdays = bData || [];
+          const [pData, bData, eData] = await Promise.all([
+            supabase.from("calendar_proposals").select("*"),
+            supabase.from("birthdays").select("*"),
+            supabase.from("events").select("*")
+          ]);
+          state.calendarProposals = pData.data || [];
+          state.birthdays = bData.data || [];
+          state.events = eData.data || [];
         } catch (e) {
-          console.error("Error carregant aniversaris:", e);
-        }
-        try {
-          const { data: eData } = await supabase.from("events").select("*");
-          state.events = eData || [];
-        } catch (e) {
-          console.error("Error carregant esdeveniments:", e);
+          console.error("Error carregant dades del calendari:", e);
         }
         state.isLoadingData = false;
         renderApp();
