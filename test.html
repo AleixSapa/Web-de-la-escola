@@ -1461,21 +1461,7 @@
 
           if (error) throw error;
 
-          // També ho guardem a localStorage per compatibilitat amb la vista que ja hem creat
-          const saves = JSON.parse(window.localStorage.getItem("savedTestResults") || "[]");
-          saves.push({
-            user: loggedUser,
-            date: new Date().toISOString(),
-            position: currentTestResult.finalPosition,
-            lateralitat: currentTestResult.lateralitat,
-            stats: {
-              porter: currentTestResult.porter,
-              defensa: currentTestResult.defensa,
-              mig: currentTestResult.migcampista,
-              davanter: currentTestResult.delanter
-            }
-          });
-          window.localStorage.setItem("savedTestResults", JSON.stringify(saves));
+          // Resultat desat correctament a Supabase
           
           btn.textContent = "✅ Resultat desat!";
         } catch (err) {
