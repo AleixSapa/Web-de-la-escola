@@ -445,10 +445,16 @@
         }
       }
 
+      // --- UTILITATS: ROLES ---
+      const getEffectiveRole = () => {
+        if (!state.currentUser) return null;
+        return state.currentUser.role === "Betatester" ? state.currentUser.subject : state.currentUser.role;
+      };
+
       window.startNotificationChecker = () => {
          updateGlobalNotificationDot();
          if(state.calendarInterval) clearInterval(state.calendarInterval);
-         if(state.currentUser?.role === "Alumne") {
+         if(getEffectiveRole() === "Alumne") {
              const checkNotifications = async () => {
                  const { data, error } = await supabase.from("calendar_proposals")
                     .select("*")
@@ -5299,7 +5305,7 @@
         const d = String(day).padStart(2, '0');
         const date = type === "event" ? `${year}-${m}-${d}` : `2000-${m}-${d}`;
 
-        const isStudent = state.currentUser.role === 'Alumne';
+        const isStudent = getEffectiveRole() === 'Alumne';
 
         if(isStudent){
             const newItem = {
@@ -5342,8 +5348,9 @@
       };
 
       window.openAddCalendarItemModal = () => {
-        const canAddEvent = state.currentUser.role === 'Professor' || state.currentUser.role === 'Administrador';
-        const isStudent = state.currentUser.role === 'Alumne';
+        const effRole = getEffectiveRole();
+        const canAddEvent = effRole === 'Professor' || effRole === 'Administrador';
+        const isStudent = effRole === 'Alumne';
         
         const typeSelectorHTML = `
             <div>
@@ -5564,7 +5571,7 @@
           `;
         }
 
-        const canAddEvent = state.currentUser.role === 'Professor' || state.currentUser.role === 'Administrador';
+        const canAddEvent = getEffectiveRole() === 'Professor' || getEffectiveRole() === 'Administrador';
 
         container.innerHTML = `
           <div class="w-full h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden">
