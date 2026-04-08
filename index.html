@@ -129,6 +129,7 @@
       const state = {
         currentUser: null,
         view: "login",
+        schoolNews: [],
         users: [],
         students: [],
         conversations: [],
@@ -283,11 +284,12 @@
       async function initApp() {
         try {
           // Parallel loading of essential minimal data
-          const [usersRes, convRes, loginsRes, errorsRes] = await Promise.all([
+          const [usersRes, convRes, loginsRes, errorsRes, newsRes] = await Promise.all([
             supabase.from("users").select("*"),
             supabase.from("conversations").select("*"),
             supabase.from("user_logins").select("*").order("created_at", { ascending: false }).limit(100),
-            supabase.from("reported_errors").select("*").order("created_at", { ascending: false })
+            supabase.from("reported_errors").select("*").order("created_at", { ascending: false }),
+            supabase.from("school_news").select("*").order("created_at", { ascending: false })
           ]);
 
           if (usersRes.data) {
@@ -297,7 +299,6 @@
           if (convRes.data) state.conversations = convRes.data;
           if (loginsRes.data) state.userLogins = loginsRes.data;
           if (errorsRes.data) state.reportedErrors = errorsRes.data;
-
           // Recuperar sessió guardada
           const savedUsername = window.localStorage.getItem("activeUserPortal") || window.sessionStorage.getItem("activeUserPortal");
           if (savedUsername && state.users.length > 0) {
@@ -312,6 +313,49 @@
                    logLoginToDatabase(user);
                }
            }
+
+          if (newsRes && newsRes.data) {
+             const now = new Date();
+             state.schoolNews = [];
+             let hasExpiredOwnNews = false;
+             let expiredReportHtml = '';
+             for (let n of newsRes.data) {
+                 if (new Date(n.expires_at) >= now) {
+                     state.schoolNews.push({ id: n.id, title: n.title, desc: n.description, img: n.img, visibility: n.visibility, author: n.author, author_username: n.author_username, date: n.date, likes: n.likes || [] });
+                 } else {
+                     // Expirada
+                     if (state.currentUser && n.author_username === state.currentUser.username) {
+                         const likeCount = n.likes ? n.likes.length : 0;
+                         expiredReportHtml += `
+                            <div class="bg-white border-l-4 border-indigo-500 p-4 rounded-r-lg mb-3 shadow-md transform hover:scale-105 transition text-left">
+                               <p class="font-bold text-gray-800 text-lg">${n.title}</p>
+                               <p class="text-gray-600 mt-1 flex items-center gap-1">Vas obtenir <span class="font-black text-red-500 text-xl">${likeCount}</span> ❤️</p>
+                            </div>
+                         `;
+                         hasExpiredOwnNews = true;
+                     }
+                     supabase.from("school_news").delete().eq("id", n.id).then();
+                 }
+             }
+             
+             if (hasExpiredOwnNews) {
+                 setTimeout(() => {
+                    const modalHtml = `
+                    <div class="bg-gradient-to-b from-white to-red-50 p-8 md:p-10 rounded-[2rem] max-w-md w-full text-center relative shadow-2xl animate-fade-in border-4 border-red-400 transform transition-all duration-500">
+                        <button onclick="window.closeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-800 bg-white hover:bg-gray-200 w-10 h-10 rounded-full flex items-center justify-center transition font-bold text-2xl shadow border">&times;</button>
+                        <div class="text-7xl mb-4 animate-bounce">⏱️</div>
+                        <h2 class="text-3xl font-black text-red-900 mb-2 leading-tight">Publicacions Finalitzades!</h2>
+                        <p class="text-gray-600 mb-6 font-medium text-lg">Aquests són els resultats de les teves notícies que han caducat avui:</p>
+                        <div class="max-h-64 overflow-y-auto custom-scrollbar p-2">
+                           ${expiredReportHtml}
+                        </div>
+                        <button onclick="window.closeModal()" class="mt-6 w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl transition shadow-lg text-lg transform hover:-translate-y-1">Genial! 🚀</button>
+                    </div>`;
+                    document.getElementById('modal-container').innerHTML = modalHtml;
+                    document.getElementById('modal-container').classList.remove('hidden');
+                 }, 1500);
+             }
+          }
           
           // Parallelize further initialization
           await Promise.all([
@@ -463,6 +507,9 @@
             break;
           case "calendar":
             renderCalendar(app);
+            break;
+          case "school_news":
+            renderSchoolNews(app);
             break;
           default:
             renderDashboard(app);
@@ -751,6 +798,9 @@
                             </svg> Test Fútbol
                         </a>
 
+                        <button onclick="window.navigateTo('school_news')" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition font-bold shadow">
+                            📰 Notícies
+                        </button>
                         <button onclick="window.navigateTo('chat')" class="relative flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition">
                             ${Icons.Chat} Xat
                             ${chatBadge}
@@ -6251,6 +6301,160 @@
             state.isUpdatingChat = false;
           }, 3000);
         }
+      };
+
+      function renderSchoolNews(container) {
+        const currentRole = state.currentUser ? (state.currentUser.role === 'Betatester' ? state.currentUser.subject : state.currentUser.role) : null;
+        const visibleNews = state.schoolNews.filter(newsItem => {
+           if (!newsItem.visibility || newsItem.visibility === 'tots') return true;
+           if (newsItem.visibility === 'alumnes') return currentRole === 'Alumne' || currentRole === 'Administrador';
+           return true;
+        });
+
+        let listHtml = visibleNews.length === 0
+          ? `<div class="text-center py-20 text-gray-500 col-span-full">Encara no hi ha notícies disponibles per a tu.</div>`
+          : visibleNews.sort((a,b) => b.id - a.id).map(newsItem => {
+              const likesArray = newsItem.likes || [];
+              const numLikes = likesArray.length;
+              const hasLiked = state.currentUser ? likesArray.includes(state.currentUser.username) : false;
+              const canLike = state.currentUser ? (newsItem.author_username !== state.currentUser.username) : false;
+              const heartSvg = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ${hasLiked ? 'fill-current' : 'fill-none'}" viewBox="0 0 24 24" ${hasLiked ? '' : 'stroke="currentColor" stroke-width="2"'}><path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>`;
+              
+              const likeBtn = canLike
+                  ? `<button onclick="window.toggleLike(${newsItem.id})" class="flex items-center gap-1.5 px-3 py-1.5 ${hasLiked ? 'text-red-500 bg-red-50' : 'text-gray-500 bg-gray-50 hover:bg-red-50 hover:text-red-500'} rounded-xl font-bold text-sm transition-all transform active:scale-95 shadow-sm">${heartSvg}${numLikes}</button>`
+                  : `<div class="flex items-center gap-1.5 px-3 py-1.5 text-red-500 bg-red-50/70 rounded-xl font-bold text-sm shadow-sm" title="Tu has publicat aquesta notícia"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 fill-current" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>${numLikes}</div>`;
+
+              return `
+              <div class="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition border flex flex-col">
+                  ${newsItem.img ? `<img src="${newsItem.img}" class="w-full h-48 object-cover bg-gray-100">` : `<div class="w-full h-48 bg-indigo-50 flex items-center justify-center text-4xl">📰</div>`}
+                  <div class="p-5 flex-1 flex flex-col">
+                      <div class="flex items-center gap-2 mb-2 flex-wrap">
+                          <div class="text-indigo-600 font-bold text-xs bg-indigo-50 px-2 py-1 rounded-full">📅 ${newsItem.date}</div>
+                          ${newsItem.author ? `<div class="text-teal-700 font-bold text-xs bg-teal-50 px-2 py-1 rounded-full truncate max-w-[120px]" title="${newsItem.author}">👤 ${newsItem.author}</div>` : ''}
+                      </div>
+                      <h3 class="text-xl font-bold text-gray-800 mb-2">${newsItem.title}</h3>
+                      <p class="text-gray-600 text-sm mb-4 flex-1">${(newsItem.desc||'').substring(0,80)}...</p>
+                      <div class="flex items-center justify-between border-t border-gray-50 pt-3">
+                          ${likeBtn}
+                          <button onclick="window.showNewsModal(${newsItem.id})" class="text-indigo-600 font-bold flex items-center gap-1 hover:text-indigo-800 transition">Llegir més &rarr;</button>
+                      </div>
+                  </div>
+              </div>
+          `;
+          }).join('');
+
+        container.innerHTML = `
+          <div class="w-full h-full bg-gray-50 overflow-y-auto px-4 py-8 animate-fade-in">
+             <header class="max-w-6xl mx-auto flex items-center justify-between gap-4 mb-8 border-b pb-4">
+                 <div class="flex items-center gap-4">
+                     <button onclick="window.goBack()" class="text-gray-600 bg-white p-2 rounded-full shadow hover:bg-gray-100 transition">${Icons.Back}</button>
+                     <h2 class="text-3xl font-black text-gray-800">📰 Notícies</h2>
+                 </div>
+                 <button onclick="window.toggleNewsForm()" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 transition text-white font-bold rounded-xl shadow">+ Nova Notícia</button>
+             </header>
+
+             <div id="news-form-container" class="hidden max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-xl border mb-10 ring-1 ring-gray-100">
+               <h3 class="text-2xl font-bold mb-6 text-indigo-900 text-center">Publicar una Notícia</h3>
+               <form onsubmit="window.submitNews(event)" class="space-y-4">
+                 <div><input type="text" id="nn-title" placeholder="Títol de la notícia..." class="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 font-bold" required></div>
+                 <div><textarea id="nn-desc" placeholder="Contingut complet de la notícia..." class="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 h-32" required></textarea></div>
+                 <div><input type="url" id="nn-img" placeholder="URL d'imatge (opcional)" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500"></div>
+                 <div>
+                   <select id="nn-visibility" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 font-bold" required>
+                     <option value="tots">Per a tothom</option>
+                     <option value="alumnes">Només per a alumnes</option>
+                   </select>
+                 </div>
+                 <div>
+                   <select id="nn-duration" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 font-bold" required>
+                     <option value="5">Durarà 5 dies</option>
+                     <option value="7">Durarà 1 setmana</option>
+                     <option value="10">Durarà 10 dies</option>
+                     <option value="15">Durarà 15 dies</option>
+                   </select>
+                 </div>
+                 <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 transition text-white font-black py-4 rounded-xl shadow-lg mt-2">Pujar Notícia</button>
+               </form>
+             </div>
+
+             <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                ${listHtml}
+             </div>
+          </div>
+        `;
+      }
+
+      window.toggleNewsForm = () => {
+        const el = document.getElementById('news-form-container');
+        if(el) el.classList.toggle('hidden');
+      };
+
+      window.submitNews = (e) => {
+        e.preventDefault();
+        const title = document.getElementById('nn-title').value.trim();
+        const desc = document.getElementById('nn-desc').value.trim();
+        const img = document.getElementById('nn-img').value.trim();
+        const visibility = document.getElementById('nn-visibility').value;
+        const author = state.currentUser ? state.currentUser.name : 'Desconegut';
+        const duration = parseInt(document.getElementById('nn-duration').value, 10);
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + duration);
+        const dateStr = new Date().toLocaleDateString('ca-ES');
+        const authorUsername = state.currentUser ? state.currentUser.username : '';
+        
+        const dbPayload = {
+            title, description: desc, img, visibility, author, author_username: authorUsername, date: dateStr, expires_at: expiresAt.toISOString(), likes: []
+        };
+        
+        state.schoolNews.push({ id: Date.now(), title, desc, img, visibility, author, author_username: authorUsername, date: dateStr, likes: [] });
+        renderApp();
+        
+        supabase.from('school_news').insert([dbPayload]).then(({error}) => {
+             if (error) {
+                 console.error("Error guardant la notícia a Supabase", error);
+                 alert("Avís Tècnic: La notícia s'ha penjat ara mateix al teu taulell i tothom la pot veure si repeteix acció, però de moment cal que es creï la taula 'school_news' al directori Supabase de forma definitiva per a guardar-les. Requerit: columnes (title, description, img, visibility, author, date, expires_at).");
+             }
+        });
+      };
+
+      window.showNewsModal = (id) => {
+        const item = state.schoolNews.find(n => n.id === id);
+        if(!item) return;
+        const modalHtml = `
+          <div class="bg-white p-6 md:p-8 rounded-3xl max-w-2xl w-full text-left relative overflow-y-auto max-h-[90vh] shadow-2xl animate-fade-in border-t-8 border-indigo-600">
+            <button onclick="window.closeModal()" class="absolute top-6 right-6 text-gray-400 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 w-10 h-10 rounded-full flex items-center justify-center transition">
+               <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            ${item.img ? `<img src="${item.img}" class="w-full h-64 object-cover rounded-2xl mb-6 shadow-sm">` : ''}
+            <div class="flex gap-2 mb-4">
+                <div class="inline-block bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm font-bold shadow-sm">📅 ${item.date}</div>
+                ${item.author ? `<div class="inline-block bg-teal-100 text-teal-800 px-3 py-1 rounded-full text-sm font-bold shadow-sm">👤 ${item.author}</div>` : ''}
+            </div>
+            <h2 class="text-3xl font-black mb-6 text-gray-800 leading-tight">${item.title}</h2>
+            <p class="text-gray-600 whitespace-pre-wrap text-lg leading-relaxed">${item.desc}</p>
+          </div>
+        `;
+        document.getElementById('modal-container').innerHTML = modalHtml;
+        document.getElementById('modal-container').classList.remove('hidden');
+      };
+
+      window.toggleLike = (id) => {
+          if (!state.currentUser) return;
+          const newsItem = state.schoolNews.find(n => n.id === id);
+          if (!newsItem) return;
+          if (newsItem.author_username === state.currentUser.username) return;
+
+          if (!newsItem.likes) newsItem.likes = [];
+          const idx = newsItem.likes.indexOf(state.currentUser.username);
+          if (idx > -1) {
+              newsItem.likes.splice(idx, 1);
+          } else {
+              newsItem.likes.push(state.currentUser.username);
+          }
+          
+          Object.assign(newsItem, { likes: newsItem.likes });
+          renderApp();
+          supabase.from('school_news').update({ likes: newsItem.likes }).eq('id', id).then();
       };
 
       initApp();
