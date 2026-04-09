@@ -6365,25 +6365,59 @@
                      <option value="alumnes">Només per a alumnes</option>
                    </select>
                  </div>
-                  <div class="bg-gray-50 p-6 rounded-2xl border border-gray-100 space-y-4">
-                    <div class="flex justify-between items-center">
-                        <label class="text-sm font-black text-gray-700 uppercase tracking-tighter flex items-center gap-2">
-                          <span class="bg-indigo-100 p-2 rounded-lg text-indigo-600">${Icons.Clock}</span>
-                          Temps de publicació
-                        </label>
-                        <span id="nn-duration-display" class="bg-indigo-600 text-white px-4 py-1 rounded-full text-sm font-black shadow-lg shadow-indigo-200">7 dies</span>
+                  <div class="bg-gray-50 p-6 rounded-2xl border border-gray-100 space-y-6">
+                    <div class="space-y-4">
+                      <div class="flex justify-between items-center">
+                          <label class="text-sm font-black text-gray-700 uppercase tracking-tighter flex items-center gap-2">
+                            <span class="bg-indigo-100 p-2 rounded-lg text-indigo-600">${Icons.Clock}</span>
+                            Durada (dies)
+                          </label>
+                          <span id="nn-duration-display" class="bg-indigo-600 text-white px-4 py-1 rounded-full text-sm font-black shadow-lg shadow-indigo-200">7 dies</span>
+                      </div>
+                      <input type="range" id="nn-duration" min="1" max="15" value="7" 
+                        class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                        oninput="document.getElementById('nn-duration-display').innerText = this.value + (this.value == 1 ? ' dia' : ' dies')">
+                      <div class="flex justify-between text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">
+                          <span>1 dia</span>
+                          <span>15 dies</span>
+                      </div>
                     </div>
-                    
-                    <input type="range" id="nn-duration" min="1" max="15" value="7" 
-                      class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                      oninput="document.getElementById('nn-duration-display').innerText = this.value + (this.value == 1 ? ' dia' : ' dies')">
-                    
-                    <div class="flex justify-between text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">
-                        <span>1 dia</span>
-                        <span>15 dies</span>
+
+                    <div class="pt-4 border-t border-gray-200/50">
+                      <div class="flex justify-between items-center mb-4">
+                          <label class="text-sm font-black text-gray-700 uppercase tracking-tighter flex items-center gap-2">
+                            <span class="bg-pink-100 p-2 rounded-lg text-pink-600">⏰</span>
+                            Hora de finalització
+                          </label>
+                      </div>
+                      
+                      <div class="flex flex-col gap-4">
+                        <div class="flex items-center bg-white p-2 rounded-2xl border border-gray-100 shadow-sm transition-all focus-within:ring-2 focus-within:ring-indigo-100">
+                            <span class="pl-4 pr-2 text-gray-400 font-bold">HORA</span>
+                            <select id="nn-hour" onchange="window.updateNewsPreview()" class="flex-1 p-3 bg-transparent border-none rounded-xl focus:ring-0 font-black text-indigo-600 text-2xl cursor-pointer">
+                                ${Array.from({length: 24}, (_, i) => `<option value="${i.toString().padStart(2, '0')}" ${i === 8 ? 'selected' : ''}>${i.toString().padStart(2, '0')}</option>`).join('')}
+                            </select>
+                        </div>
+
+                        <div class="grid grid-cols-4 gap-2" id="nn-minute-container">
+                            <input type="hidden" id="nn-minute" value="00">
+                            ${['00', '15', '30', '45'].map(m => `
+                                <button type="button" onclick="window.setNnMin('${m}', this)" 
+                                    class="min-btn py-3 rounded-xl border-2 font-black transition-all ${m === '00' ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-white border-gray-100 text-gray-400 hover:border-indigo-200'}">
+                                    ${m}
+                                </button>
+                            `).join('')}
+                        </div>
+                      </div>
+                      <p class="text-[10px] text-gray-400 mt-4 pl-1 uppercase font-bold text-center tracking-widest">Escull un dels intervals de minuts</p>
+                    </div>
+
+                    <div id="nn-preview-box" class="mt-4 p-4 bg-indigo-50 rounded-xl border border-indigo-100 text-center">
+                        <span class="text-xs font-bold text-indigo-400 uppercase tracking-widest block mb-1">DATA DE FINALITZACIÓ</span>
+                        <div id="nn-preview-text" class="text-indigo-900 font-black text-sm italic">Calculant...</div>
                     </div>
                   </div>
-                 <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 transition text-white font-black py-4 rounded-xl shadow-lg mt-2">Pujar Notícia</button>
+                  <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 transition text-white font-black py-4 rounded-xl shadow-lg mt-2">Pujar Notícia</button>
                </form>
              </div>
 
@@ -6394,9 +6428,37 @@
         `;
       }
 
+      window.setNnMin = (val, btn) => {
+          document.getElementById('nn-minute').value = val;
+          document.querySelectorAll('.min-btn').forEach(b => {
+              b.classList.remove('bg-indigo-600', 'border-indigo-600', 'text-white', 'shadow-lg');
+              b.classList.add('bg-white', 'border-gray-100', 'text-gray-400');
+          });
+          btn.classList.add('bg-indigo-600', 'border-indigo-600', 'text-white', 'shadow-lg');
+          btn.classList.remove('bg-white', 'border-gray-100', 'text-gray-400');
+          window.updateNewsPreview();
+      };
+
+      window.updateNewsPreview = () => {
+          const duration = parseInt(document.getElementById('nn-duration').value, 10);
+          const h = document.getElementById('nn-hour').value;
+          const m = document.getElementById('nn-minute').value;
+          const target = new Date();
+          target.setDate(target.getDate() + duration);
+          const dateStr = target.toLocaleDateString('ca-ES', { weekday:'long', day:'numeric', month:'long' });
+          document.getElementById('nn-preview-text').innerText = `Acaba el ${dateStr} a les ${h}:${m}`;
+      };
+
       window.toggleNewsForm = () => {
         const el = document.getElementById('news-form-container');
-        if(el) el.classList.toggle('hidden');
+        if(el) {
+            el.classList.toggle('hidden');
+            if (!el.classList.contains('hidden')) {
+                // Afegir listener d'input al slider si no hi és
+                document.getElementById('nn-duration').addEventListener('input', window.updateNewsPreview);
+                window.updateNewsPreview();
+            }
+        }
       };
 
       window.submitNews = (e) => {
@@ -6407,8 +6469,13 @@
         const visibility = document.getElementById('nn-visibility').value;
         const author = state.currentUser ? state.currentUser.name : 'Desconegut';
         const duration = parseInt(document.getElementById('nn-duration').value, 10);
+        const hour = parseInt(document.getElementById('nn-hour').value, 10);
+        const minute = parseInt(document.getElementById('nn-minute').value, 10);
+        
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + duration);
+        expiresAt.setHours(hour, minute, 0, 0);
+
         const dateStr = new Date().toLocaleDateString('ca-ES');
         const authorUsername = state.currentUser ? state.currentUser.username : '';
         
