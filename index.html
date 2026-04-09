@@ -6365,14 +6365,24 @@
                      <option value="alumnes">Només per a alumnes</option>
                    </select>
                  </div>
-                 <div>
-                   <select id="nn-duration" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 font-bold" required>
-                     <option value="5">Durarà 5 dies</option>
-                     <option value="7">Durarà 1 setmana</option>
-                     <option value="10">Durarà 10 dies</option>
-                     <option value="15">Durarà 15 dies</option>
-                   </select>
-                 </div>
+                  <div class="bg-gray-50 p-6 rounded-2xl border border-gray-100 space-y-4">
+                    <div class="flex justify-between items-center">
+                        <label class="text-sm font-black text-gray-700 uppercase tracking-tighter flex items-center gap-2">
+                          <span class="bg-indigo-100 p-2 rounded-lg text-indigo-600">${Icons.Clock}</span>
+                          Temps de publicació
+                        </label>
+                        <span id="nn-duration-display" class="bg-indigo-600 text-white px-4 py-1 rounded-full text-sm font-black shadow-lg shadow-indigo-200">7 dies</span>
+                    </div>
+                    
+                    <input type="range" id="nn-duration" min="1" max="15" value="7" 
+                      class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                      oninput="document.getElementById('nn-duration-display').innerText = this.value + (this.value == 1 ? ' dia' : ' dies')">
+                    
+                    <div class="flex justify-between text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">
+                        <span>1 dia</span>
+                        <span>15 dies</span>
+                    </div>
+                  </div>
                  <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 transition text-white font-black py-4 rounded-xl shadow-lg mt-2">Pujar Notícia</button>
                </form>
              </div>
