@@ -285,12 +285,13 @@
       async function initApp() {
         try {
           // Parallel loading of essential minimal data
-          const [usersRes, convRes, loginsRes, errorsRes, newsRes] = await Promise.all([
+          const [usersRes, convRes, loginsRes, errorsRes, newsRes, eventsRes] = await Promise.all([
             supabase.from("users").select("*"),
             supabase.from("conversations").select("*"),
             supabase.from("user_logins").select("*").order("created_at", { ascending: false }).limit(100),
             supabase.from("reported_errors").select("*").order("created_at", { ascending: false }),
-            supabase.from("school_news").select("*").order("created_at", { ascending: false })
+            supabase.from("school_news").select("*").order("created_at", { ascending: false }),
+            supabase.from("events").select("*")
           ]);
 
           if (usersRes.data) {
@@ -300,6 +301,11 @@
           if (convRes.data) state.conversations = convRes.data;
           if (loginsRes.data) state.userLogins = loginsRes.data;
           if (errorsRes.data) state.reportedErrors = errorsRes.data;
+          
+          if (eventsRes.data) {
+              state.events = await window.processEvents(eventsRes.data);
+          }
+
           // Recuperar sessió guardada
           const savedUsername = window.localStorage.getItem("activeUserPortal") || window.sessionStorage.getItem("activeUserPortal");
           if (savedUsername && state.users.length > 0) {
@@ -524,6 +530,34 @@
         return state.currentUser.role === "Betatester" ? state.currentUser.subject : state.currentUser.role;
       };
 
+      window.displayName = (username) => {
+          if (!username) return "Desconegut";
+          if (username === 'system') return 'Sistema';
+          const u = state.users.find(user => user.username === username);
+          return u ? u.name : `@${username}`;
+      };
+
+      window.processEvents = async (rawEvents) => {
+          const nowCleanup = new Date();
+          const limitDate = new Date();
+          limitDate.setDate(nowCleanup.getDate() - 3);
+          limitDate.setHours(0,0,0,0);
+          
+          let validEvents = [];
+          if (rawEvents) {
+              for (let ev of rawEvents) {
+                  const evDate = new Date(ev.date);
+                  evDate.setHours(0,0,0,0);
+                  if (evDate < limitDate) {
+                      supabase.from("events").delete().eq("id", ev.id).then();
+                  } else {
+                      validEvents.push(ev);
+                  }
+              }
+          }
+          return validEvents;
+      };
+
       window.startNotificationChecker = () => {
          updateGlobalNotificationDot();
          if(state.calendarInterval) clearInterval(state.calendarInterval);
@@ -702,9 +736,12 @@
                 <h2 class="text-xl font-bold mb-6 text-slate-700">Dades del Compte</h2>
                 <form onsubmit="window.updateAccount(event)" class="space-y-4">
                   <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Nom</label>
+                    <input id="set-name" type="text" value="${state.currentUser.name}" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none transition" required>
+                  </div>
+                  <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">Nom d'usuari (Login)</label>
                     <input id="set-username" type="text" value="${state.currentUser.username}" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none transition" required>
-                    <p class="text-[10px] text-slate-400 mt-1">⚠️ Atenció: Canviar el teu nom d'usuari pot afectar l'historial de missatges.</p>
                   </div>
                   <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">Contrasenya</label>
@@ -726,9 +763,11 @@
 
       window.updateAccount = async (e) => {
         e.preventDefault();
+        const newName = document.getElementById("set-name").value;
         const newUsername = document.getElementById("set-username").value;
         const newPassword = document.getElementById("set-password").value;
         const oldUsername = state.currentUser.username;
+        const oldName = state.currentUser.name;
         const btn = document.getElementById("update-account-btn");
         
         btn.disabled = true;
@@ -754,7 +793,7 @@
           // 2. Actualitzar dades a la taula 'users'
           const { error: updateError } = await supabase
             .from("users")
-            .update({ username: newUsername, password: newPassword })
+            .update({ name: newName, username: newUsername, password: newPassword })
             .eq("username", oldUsername);
 
           if (updateError) throw updateError;
@@ -783,14 +822,95 @@
                 console.warn(`No s'ha pogut actualitzar la taula ${item.table}:`, e);
               }
             }
+
+            // --- CASCADES ESPECIALS PER ARRAYS I JSON (Només si canvia l'usuari) ---
+            
+            // A. Converses: Participants, Missatges i Creador
+            try {
+              const { data: convs } = await supabase.from("conversations").select("*").contains("participants", [oldUsername]);
+              if (convs) {
+                for (const conv of convs) {
+                  const newParticipants = conv.participants.map(p => p === oldUsername ? newUsername : p);
+                  const newMessages = (conv.messages || []).map(m => {
+                    if (m.sender === oldUsername) m.sender = newUsername;
+                    if (m.readBy) m.readBy = m.readBy.map(u => u === oldUsername ? newUsername : u);
+                    return m;
+                  });
+                  const updateData = { participants: newParticipants, messages: newMessages };
+                  if (conv.creator === oldUsername) updateData.creator = newUsername;
+                  await supabase.from("conversations").update(updateData).eq("id", conv.id);
+                }
+              }
+            } catch(e) { console.error("Error en cascada de xats:", e); }
+
+            // B. Deures: Alumnes assignats i llista de completats
+            try {
+              const { data: homeworks } = await supabase.from("homeworks").select("*");
+              if (homeworks) {
+                for (const hw of homeworks) {
+                  let changed = false;
+                  let upd = {};
+                  if (hw.assigned_students && hw.assigned_students.includes(oldUsername)) {
+                    upd.assigned_students = hw.assigned_students.map(u => u === oldUsername ? newUsername : u);
+                    changed = true;
+                  }
+                  if (hw.completed_by && hw.completed_by.includes(oldUsername)) {
+                    upd.completed_by = hw.completed_by.map(u => u === oldUsername ? newUsername : u);
+                    changed = true;
+                  }
+                  if (changed) await supabase.from("homeworks").update(upd).eq("id", hw.id);
+                }
+              }
+            } catch(e) { console.error("Error en cascada de deures:", e); }
+
+            // C. Exàmens: Alumnes assignats
+            try {
+              const { data: exams } = await supabase.from("exams").select("*");
+              if (exams) {
+                for(const ex of exams) {
+                  if (ex.assigned_students && ex.assigned_students.includes(oldUsername)) {
+                    const newAssigned = ex.assigned_students.map(u => u === oldUsername ? newUsername : u);
+                    await supabase.from("exams").update({ assigned_students: newAssigned }).eq("id", ex.id);
+                  }
+                }
+              }
+            } catch(e) { console.error("Error en cascada d'exàmens:", e); }
           }
 
-          // 4. Actualitzar estat local i localStorage
+          // 4. Si el nom ha canviat, actualitzem també el nom d'autor a les notícies
+          if (newName !== oldName) {
+            await supabase.from("school_news").update({ author: newName }).eq("author_username", newUsername);
+          }
+
+          // 5. Actualitzar estat local i localStorage
+          if (newUsername !== oldUsername) {
+            // Actualitzem localment les converses perquè no desapareguin (ja que es filtren per username)
+            state.conversations.forEach(c => {
+              if (c.participants.includes(oldUsername)) {
+                c.participants = c.participants.map(p => p === oldUsername ? newUsername : p);
+                if (c.creator === oldUsername) c.creator = newUsername;
+                if (c.messages) {
+                  c.messages.forEach(m => {
+                    if (m.sender === oldUsername) m.sender = newUsername;
+                    if (m.readBy) m.readBy = m.readBy.map(u => u === oldUsername ? newUsername : u);
+                  });
+                }
+              }
+            });
+            // Migrem localStorage de "notícies vistes"
+            const lastSeen = window.localStorage.getItem("latestNewsIdSeen_" + oldUsername);
+            if (lastSeen) {
+              window.localStorage.setItem("latestNewsIdSeen_" + newUsername, lastSeen);
+              window.localStorage.removeItem("latestNewsIdSeen_" + oldUsername);
+            }
+          }
+
+          state.currentUser.name = newName;
           state.currentUser.username = newUsername;
           state.currentUser.password = newPassword;
           window.localStorage.setItem("activeUserPortal", newUsername);
 
-          alert("Dades actualitzades correctament! Has canviat el teu login.");
+          alert("Dades actualitzades correctament!");
           renderApp();
         } catch (err) {
           console.error("Error actualitzant dades:", err);
@@ -846,7 +966,7 @@
                   <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-6 border-t border-gray-100">
                     <div class="bg-gray-50 p-3 rounded-xl">
                       <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Penjada per</p>
-                      <p class="font-bold text-gray-700 flex items-center gap-1 truncate text-sm">👤 @${newsItem.author_username || newsItem.author}</p>
+                      <p class="font-bold text-gray-700 flex items-center gap-1 truncate text-sm">👤 ${newsItem.author}</p>
                     </div>
                     <div class="bg-gray-50 p-3 rounded-xl">
                       <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Data de publicació</p>
@@ -1871,7 +1991,7 @@
                             ${i === 0 ? '<span class="absolute -top-2 -right-2 text-xl">👑</span>' : ''}
                          </div>
                          <div class="flex flex-col">
-                            <span class="font-bold text-gray-900 text-lg">@${user}</span>
+                            <span class="font-bold text-gray-900 text-lg">${window.displayName(user)}</span>
                             <span class="text-xs text-gray-500 font-medium">Mestre de Jocs</span>
                          </div>
                       </div>
@@ -1896,7 +2016,7 @@
                             ${i === 0 ? '<span class="absolute -top-2 -right-2 text-xl">🚀</span>' : ''}
                          </div>
                          <div class="flex flex-col">
-                            <span class="font-bold text-gray-900 text-lg">@${res.student_username}</span>
+                            <span class="font-bold text-gray-900 text-lg">${window.displayName(res.student_username)}</span>
                             <span class="text-xs text-blue-500 font-medium">Llegenda Viva</span>
                          </div>
                       </div>
@@ -1953,7 +2073,7 @@
                                       <div class="flex items-center gap-4">
                                          <span class="text-4xl bg-white p-2 rounded-full shadow-sm">🤓</span>
                                          <div class="flex flex-col text-left">
-                                             <span class="font-black text-gray-900 text-xl">@${topPracticador[0]} té el títol</span>
+                                             <span class="font-black text-gray-900 text-xl">${window.displayName(topPracticador[0])} té el títol</span>
                                              <span class="text-xs text-slate-500 font-bold uppercase tracking-wider">Títol: El Practicador</span>
                                          </div>
                                       </div>
@@ -2051,7 +2171,7 @@
                   <div class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
                       <div class="flex items-center gap-2">
                          <span class="text-xl font-bold w-6 text-center ${i===0?'text-yellow-500':i===1?'text-gray-400':i===2?'text-orange-400':''}">${i+1}</span>
-                         <span class="font-medium text-gray-800">@${p.student_username}</span>
+                         <span class="font-medium text-gray-800">${window.displayName(p.student_username)}</span>
                       </div>
                       <span class="font-mono font-bold text-green-600">${p.score}</span>
                   </div>
@@ -2061,7 +2181,7 @@
                   <div class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
                       <div class="flex items-center gap-2">
                          <span class="text-xl font-bold w-6 text-center ${i===0?'text-yellow-500':i===1?'text-gray-400':i===2?'text-orange-400':''}">${i+1}</span>
-                         <span class="font-medium text-gray-800">@${p.student_username}</span>
+                         <span class="font-medium text-gray-800">${window.displayName(p.student_username)}</span>
                       </div>
                       <span class="font-mono font-bold text-blue-600">${p.score}</span>
                   </div>
@@ -2071,7 +2191,7 @@
                   <div class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
                       <div class="flex items-center gap-2">
                          <span class="text-xl font-bold w-6 text-center ${i===0?'text-yellow-500':i===1?'text-gray-400':i===2?'text-orange-400':''}">${i+1}</span>
-                         <span class="font-medium text-gray-800">@${p.student_username}</span>
+                         <span class="font-medium text-gray-800">${window.displayName(p.student_username)}</span>
                       </div>
                       <span class="font-mono font-bold text-yellow-600">${p.score}</span>
                   </div>
@@ -2109,7 +2229,7 @@
                                         <div class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
                                             <div class="flex items-center gap-2">
                                                <span class="text-xl font-bold w-6 text-center ${i===0?'text-yellow-500':i===1?'text-gray-400':i===2?'text-orange-400':''}">${i+1}</span>
-                                               <span class="font-medium text-gray-800">@${p.student_username}</span>
+                                               <span class="font-medium text-gray-800">${window.displayName(p.student_username)}</span>
                                             </div>
                                             <span class="font-mono font-bold text-red-600">${p.score}</span>
                                         </div>
@@ -2123,7 +2243,7 @@
                                         <div class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
                                             <div class="flex items-center gap-2">
                                                <span class="text-xl font-bold w-6 text-center ${i===0?'text-yellow-500':i===1?'text-gray-400':i===2?'text-orange-400':''}">${i+1}</span>
-                                               <span class="font-medium text-gray-800">@${p.student_username}</span>
+                                               <span class="font-medium text-gray-800">${window.displayName(p.student_username)}</span>
                                             </div>
                                             <span class="font-mono font-bold text-slate-600">${p.score}</span>
                                         </div>
@@ -2137,7 +2257,7 @@
                                         <div class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
                                             <div class="flex items-center gap-2">
                                                <span class="text-xl font-bold w-6 text-center ${i===0?'text-yellow-500':i===1?'text-gray-400':i===2?'text-orange-400':''}">${i+1}</span>
-                                               <span class="font-medium text-gray-800">@${p.student_username}</span>
+                                               <span class="font-medium text-gray-800">${window.displayName(p.student_username)}</span>
                                             </div>
                                             <span class="font-mono font-bold text-indigo-600">${p.score}</span>
                                         </div>
@@ -2230,7 +2350,7 @@
                                 <div class="flex items-center justify-between gap-3 group/rank">
                                     <div class="flex items-center gap-2 overflow-hidden">
                                         <span class="text-sm font-black w-5 text-center ${i===0?'text-yellow-500':i===1?'text-gray-400':i===2?'text-orange-400':''}">${i+1}</span>
-                                        <span class="text-sm font-bold text-gray-700 truncate">@${p.student_username}</span>
+                                        <span class="text-sm font-bold text-gray-700 truncate">${window.displayName(p.student_username)}</span>
                                     </div>
                                     <span class="font-mono font-bold text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg">${p.score}</span>
                                 </div>
@@ -5673,7 +5793,7 @@
           ]);
           state.calendarProposals = pData.data || [];
           state.birthdays = bData.data || [];
-          state.events = eData.data || [];
+          state.events = await window.processEvents(eData.data);
         } catch (e) {
           console.error("Error carregant dades del calendari:", e);
         }
@@ -6049,7 +6169,7 @@
           .map((c) => {
             const name = c.isGroup
               ? c.name
-              : c.participants.find((p) => p !== user.username);
+              : window.displayName(c.participants.find((p) => p !== user.username));
             const isActive =
               c.id === state.currentChatId
                 ? "bg-blue-100"
@@ -6076,13 +6196,15 @@
                     ? `<audio src="${msg.audioUrl}" controls class="max-w-full h-8"></audio>`
                     : `<p>${msg.text}</p>`;
 
+                const senderName = window.displayName(msg.sender);
+
                 return `<div class="flex flex-col mb-2 ${
                   isMe ? "items-end" : "items-start"
                 }"><div class="message-bubble group ${
                   isMe ? "message-sent" : "message-received"
                 } bg-white"><div class="flex items-start justify-between"><div><p class="text-xs font-bold text-blue-600 mb-1">${
                   msg.sender !== user.username && activeChat.isGroup
-                    ? msg.sender
+                    ? senderName
                     : ""
                 }</p>${content}</div>${deleteBtn}</div></div></div>`;
               })
