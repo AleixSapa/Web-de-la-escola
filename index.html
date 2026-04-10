@@ -774,6 +774,7 @@
       // --- VISTA: DASHBOARD PRINCIPAL ---
       function renderDashboard(container) {
         const user = state.currentUser;
+        const effectiveRole = (user.role === "Betatester") ? user.subject : user.role;
 
         const unreadCount = state.conversations.reduce((acc, conv) => {
           if (!conv.participants.includes(user.username)) return acc;
@@ -792,11 +793,12 @@
         }</p>
                     </div>
                     <div class="flex gap-2 flex-wrap justify-end">
+                        ${effectiveRole !== "Professor" ? `
                         <a href="test.html" class="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition">
                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                             </svg> Test Fútbol
-                        </a>
+                        </a>` : ''}
 
                         <button onclick="window.navigateTo('school_news')" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition font-bold shadow">
                             📰 Notícies
@@ -827,7 +829,6 @@
             `;
 
         let content = "";
-        const effectiveRole = (user.role === "Betatester") ? user.subject : user.role;
 
         if (effectiveRole === "Alumne") {
           content = `
@@ -3974,6 +3975,10 @@
       }
 
       function renderStudentTestResults(container) {
+          if (getEffectiveRole() === "Professor") {
+              container.innerHTML = `<div class="w-full h-full flex items-center justify-center p-10 text-center text-red-500 font-bold bg-white rounded-2xl shadow-sm">No tens permís per veure els resultats del test de futbol.</div>`;
+              return;
+          }
           // 1. Dades de LocalStorage
           const localSaves = JSON.parse(window.localStorage.getItem("savedTestResults") || "[]")
               .filter(s => s.user === state.currentUser?.username)

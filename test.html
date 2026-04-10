@@ -254,6 +254,22 @@
 
     <!-- Logic -->
     <script>
+      // Control d'accés: Els professors no poden fer el test
+      (async function() {
+        const username = window.localStorage.getItem("activeUserPortal");
+        if (username) {
+          const supa = window.supabase.createClient("https://hocwnqqdyyinjrtczhdw.supabase.co", "sb_publishable_X_TrrWex0GfBLIzbKFp1Cg_Xa97mziS");
+          const { data: user } = await supa.from("users").select("role, subject").eq("username", username).maybeSingle();
+          if (user) {
+            const role = user.role === "Betatester" ? user.subject : user.role;
+            if (role === "Professor") {
+              alert("Els professors no tenen permís per fer el test de futbol.");
+              window.location.href = "index.html";
+            }
+          }
+        }
+      })();
+
       const QUESTIONS = [
         {
           id: 1,
