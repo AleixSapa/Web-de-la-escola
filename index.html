@@ -207,6 +207,7 @@
       }
 
       async function logLoginToDatabase(user) {
+        if (user.username === "admin.Escola" || user.username === "Aleix") return;
         try {
            const entry = {
              username: user.username,
