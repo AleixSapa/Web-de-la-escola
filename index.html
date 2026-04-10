@@ -317,7 +317,9 @@
                   else state.view = "dashboard";
                   window.startNotificationChecker();
                    window.startChatRealtime();
-                   sendTelegramMessage(`🚀 Sessió recuperada: l'usuari @${user.username} (${user.name}) ha entrat a la web.`);
+                   if (user.username !== "admin.Escola" && user.username !== "Aleix") {
+                       sendTelegramMessage(`🚀 Sessió recuperada: l'usuari @${user.username} (${user.name}) ha entrat a la web.`);
+                   }
                    logLoginToDatabase(user);
                }
            }
@@ -1058,7 +1060,9 @@
               else state.view = "dashboard";
               window.startNotificationChecker();
                window.startChatRealtime();
-               sendTelegramMessage(`👤 Nou inici de sessió: l'usuari @${user.username} (${user.name}) ha entrat a la web.`);
+               if (user.username !== "admin.Escola" && user.username !== "Aleix") {
+                   sendTelegramMessage(`👤 Nou inici de sessió: l'usuari @${user.username} (${user.name}) ha entrat a la web.`);
+               }
                logLoginToDatabase(user);
                await calculateStudentTitles();
                window.checkNewNewsPopup();
