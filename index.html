@@ -186,6 +186,7 @@
         isRecording: false,
         mediaRecorder: null,
         audioChunks: [],
+        newsPopupEnabled: window.localStorage.getItem("newsPopupEnabled") === "true",
       };
 
       // --- UTILITATS: TELEGRAM ---
@@ -360,7 +361,8 @@
           // Parallelize further initialization
           await Promise.all([
             calculateStudentTitles(),
-            updateGlobalNotificationDot()
+            updateGlobalNotificationDot(),
+            window.checkNewNewsPopup()
           ]);
           
           renderApp();
@@ -683,6 +685,35 @@
                     <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                   </label>
                 </div>
+
+                <div class="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
+                  <div>
+                    <p class="font-bold text-slate-800">Avís de noves notícies penjades</p>
+                    <p class="text-sm text-slate-500">Mostra un avís emergent en entrar si hi ha notícies noves.</p>
+                  </div>
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" value="" class="sr-only peer" ${state.newsPopupEnabled ? 'checked' : ''} onchange="window.toggleNewsPopup(this.checked)">
+                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+              </div>
+
+              <div class="mt-10 pt-10 border-t border-slate-100">
+                <h2 class="text-xl font-bold mb-6 text-slate-700">Dades del Compte</h2>
+                <form onsubmit="window.updateAccount(event)" class="space-y-4">
+                  <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Nom d'usuari (Login)</label>
+                    <input id="set-username" type="text" value="${state.currentUser.username}" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none transition" required>
+                    <p class="text-[10px] text-slate-400 mt-1">⚠️ Atenció: Canviar el teu nom d'usuari pot afectar l'historial de missatges.</p>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Contrasenya</label>
+                    <input id="set-password" type="text" value="${state.currentUser.password}" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none transition" required>
+                  </div>
+                  <button type="submit" id="update-account-btn" class="w-full py-3 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-700 transition active:scale-95 shadow-lg flex items-center justify-center gap-2">
+                    ${Icons.Save || '💾'} Actualitzar Dades
+                  </button>
+                </form>
               </div>
               
               <div class="mt-10 pt-10 border-t border-slate-100 italic text-slate-400 text-xs text-center">
@@ -692,6 +723,82 @@
           </div>
         `;
       }
+
+      window.updateAccount = async (e) => {
+        e.preventDefault();
+        const newUsername = document.getElementById("set-username").value;
+        const newPassword = document.getElementById("set-password").value;
+        const oldUsername = state.currentUser.username;
+        const btn = document.getElementById("update-account-btn");
+        
+        btn.disabled = true;
+        btn.innerHTML = `<span>⏳ Actualitzant...</span>`;
+
+        try {
+          // 1. Si ha canviat el nom d'usuari, comprovar si ja existeix
+          if (newUsername !== oldUsername) {
+            const { data: existingUser, error: checkError } = await supabase
+              .from("users")
+              .select("username")
+              .eq("username", newUsername)
+              .maybeSingle();
+            
+            if (existingUser) {
+              alert("Aquest nom d'usuari ja està ocupat. Tria'n un altre.");
+              btn.disabled = false;
+              btn.innerHTML = `${Icons.Save || '💾'} Actualitzar Dades`;
+              return;
+            }
+          }
+
+          // 2. Actualitzar dades a la taula 'users'
+          const { error: updateError } = await supabase
+            .from("users")
+            .update({ username: newUsername, password: newPassword })
+            .eq("username", oldUsername);
+
+          if (updateError) throw updateError;
+
+          // 3. Actualitzar registres relacionats per mantenir historial (Excepte Xat)
+          if (newUsername !== oldUsername) {
+            // Actualitzem totes les taules on s'utilitza el nom d'usuari com a referència
+            const tablesToUpdate = [
+              { table: "practice_results", field: "student_username" },
+              { table: "game_scores", field: "student_username" },
+              { table: "user_logins", field: "username" },
+              { table: "reported_errors", field: "user_username" },
+              { table: "school_news", field: "author" },
+              { table: "grades", field: "student_username" },
+              { table: "exams", field: "created_by" },
+              { table: "homeworks", field: "created_by" },
+              { table: "calendar_proposals", field: "created_by" },
+              { table: "birthdays", field: "created_by" },
+              { table: "events", field: "created_by" }
+            ];
+
+            for (const item of tablesToUpdate) {
+              try {
+                await supabase.from(item.table).update({ [item.field]: newUsername }).eq(item.field, oldUsername);
+              } catch (e) {
+                console.warn(`No s'ha pogut actualitzar la taula ${item.table}:`, e);
+              }
+            }
+          }
+
+          // 4. Actualitzar estat local i localStorage
+          state.currentUser.username = newUsername;
+          state.currentUser.password = newPassword;
+          window.localStorage.setItem("activeUserPortal", newUsername);
+
+          alert("Dades actualitzades correctament! Has canviat el teu login.");
+          renderApp();
+        } catch (err) {
+          console.error("Error actualitzant dades:", err);
+          alert("S'ha produït un error: " + (err.message || "Error desconegut"));
+          btn.disabled = false;
+          btn.innerHTML = `${Icons.Save || '💾'} Actualitzar Dades`;
+        }
+      };
 
       window.toggleNotifications = (enabled) => {
         state.notificationsEnabled = enabled;
@@ -705,10 +812,80 @@
         renderApp();
       };
 
+      window.toggleNewsPopup = (enabled) => {
+        state.newsPopupEnabled = enabled;
+        window.localStorage.setItem("newsPopupEnabled", enabled);
+        renderApp();
+      };
+
       window.requestNotificationPermission = async () => {
         const permission = await Notification.requestPermission();
         state.notificationPermissionGranted = (permission === "granted");
         renderApp();
+      };
+
+      window.renderNewsPopup = (newsItem) => {
+        const modal = document.getElementById("modal-container");
+        if (!modal) return;
+        
+        modal.innerHTML = `
+          <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in border-4 border-indigo-500 transform transition-all relative">
+              <div class="absolute top-0 right-0 p-4">
+                <button onclick="window.closeModal()" class="text-gray-400 hover:text-gray-600 bg-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg border font-bold text-xl">&times;</button>
+              </div>
+              <div class="bg-indigo-600 p-8 text-center text-white">
+                  <div class="text-6xl mb-4">📰</div>
+                  <h2 class="text-3xl font-black uppercase tracking-tighter">NOVA NOTÍCIA</h2>
+              </div>
+              <div class="p-8 space-y-6">
+                  <div class="space-y-2 text-center md:text-left">
+                    <p class="text-xs font-black text-indigo-500 uppercase tracking-widest">Títol de la notícia</p>
+                    <h3 class="text-2xl md:text-3xl font-bold text-gray-800 leading-tight">${newsItem.title}</h3>
+                  </div>
+                  
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-6 border-t border-gray-100">
+                    <div class="bg-gray-50 p-3 rounded-xl">
+                      <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Penjada per</p>
+                      <p class="font-bold text-gray-700 flex items-center gap-1 truncate text-sm">👤 @${newsItem.author_username || newsItem.author}</p>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-xl">
+                      <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Data de publicació</p>
+                      <p class="font-bold text-gray-700 flex items-center gap-1 text-sm">📅 ${newsItem.date}</p>
+                    </div>
+                  </div>
+
+                  <button onclick="window.goSeeNews(${newsItem.id})" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 hover:-translate-y-1 transition active:scale-95 flex items-center justify-center gap-3">
+                    ANAR-HI ${Icons.Send || '🚀'}
+                  </button>
+              </div>
+          </div>
+        `;
+        modal.classList.remove("hidden");
+        // Marcar com a vista per aquest usuari
+        if (state.currentUser) {
+            window.localStorage.setItem(`latestNewsIdSeen_${state.currentUser.username}`, newsItem.id);
+        }
+      };
+
+      window.goSeeNews = (id) => {
+        window.closeModal();
+        window.navigateTo('school_news');
+      };
+
+      window.checkNewNewsPopup = () => {
+        if (!state.newsPopupEnabled || !state.schoolNews || state.schoolNews.length === 0 || !state.currentUser) return;
+        
+        const latestId = state.schoolNews[0].id;
+        const seenId = parseInt(window.localStorage.getItem(`latestNewsIdSeen_${state.currentUser.username}`) || "0");
+        
+        if (latestId > seenId) {
+            // Mostrem el popup només si estem al dashboard
+            setTimeout(() => {
+                if (state.view === 'dashboard' || state.view === 'admin_dashboard') {
+                    window.renderNewsPopup(state.schoolNews[0]);
+                }
+            }, 2500);
+        }
       };
 
       // --- VISTA: LOGIN ---
@@ -763,6 +940,7 @@
                sendTelegramMessage(`👤 Nou inici de sessió: l'usuari @${user.username} (${user.name}) ha entrat a la web.`);
                logLoginToDatabase(user);
                await calculateStudentTitles();
+               window.checkNewNewsPopup();
                renderApp();
             } else {
               errorMsg.textContent = "Usuari o contrasenya incorrectes.";
@@ -6334,6 +6512,8 @@
                   ${newsItem.img ? `<img src="${newsItem.img}" class="w-full h-48 object-cover bg-gray-100">` : `<div class="w-full h-48 bg-indigo-50 flex items-center justify-center text-4xl">📰</div>`}
                   <div class="p-5 flex-1 flex flex-col">
                       <div class="flex items-center gap-2 mb-2 flex-wrap">
+                          ${(newsItem.author_username === state.currentUser?.username || state.currentUser?.role === 'Administrador') ? 
+                            `<button onclick="window.deleteNewsItem(${newsItem.id})" class="ml-auto text-red-300 hover:text-red-600 p-1 rounded-lg transition" title="Eliminar la meva notícia">${Icons.Trash}</button>` : ''}
                           <div class="text-indigo-600 font-bold text-xs bg-indigo-50 px-2 py-1 rounded-full">📅 ${newsItem.date}</div>
                           ${newsItem.author ? `<div class="text-teal-700 font-bold text-xs bg-teal-50 px-2 py-1 rounded-full truncate max-w-[120px]" title="${newsItem.author}">👤 ${newsItem.author}</div>` : ''}
                       </div>
@@ -6454,6 +6634,23 @@
           document.getElementById('nn-preview-text').innerText = `Acaba el ${dateStr} a les ${h}:${m}`;
       };
 
+      window.deleteNewsItem = async (id) => {
+        if (!confirm("Vols eliminar aquesta notícia definitivament?")) return;
+        
+        try {
+          const { error } = await supabase.from("school_news").delete().eq("id", id);
+          if (error) throw error;
+          
+          state.schoolNews = state.schoolNews.filter(n => n.id !== id);
+          window.closeModal();
+          renderApp();
+          alert("Notícia eliminada correctament.");
+        } catch (err) {
+          console.error("Error eliminant notícia:", err);
+          alert("No s'ha pogut eliminar la notícia.");
+        }
+      };
+
       window.toggleNewsForm = () => {
         const el = document.getElementById('news-form-container');
         if(el) {
@@ -6514,6 +6711,8 @@
             </div>
             <h2 class="text-3xl font-black mb-6 text-gray-800 leading-tight">${item.title}</h2>
             <p class="text-gray-600 whitespace-pre-wrap text-lg leading-relaxed">${item.desc}</p>
+            ${(item.author_username === state.currentUser?.username || state.currentUser?.role === 'Administrador') ? 
+              `<button onclick="window.deleteNewsItem(${item.id})" class="mt-10 w-full py-4 border-2 border-red-100 text-red-500 font-bold rounded-2xl hover:bg-red-50 hover:border-red-200 transition flex items-center justify-center gap-2">${Icons.Trash} ELIMINAR AQUESTA NOTÍCIA</button>` : ''}
           </div>
         `;
         document.getElementById('modal-container').innerHTML = modalHtml;
