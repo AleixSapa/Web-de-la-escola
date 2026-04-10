@@ -6617,7 +6617,7 @@
         const currentRole = state.currentUser ? (state.currentUser.role === 'Betatester' ? state.currentUser.subject : state.currentUser.role) : null;
         const visibleNews = state.schoolNews.filter(newsItem => {
            if (!newsItem.visibility || newsItem.visibility === 'tots') return true;
-           if (newsItem.visibility === 'alumnes') return currentRole === 'Alumne' || currentRole === 'Administrador';
+           if (newsItem.visibility === 'alumnes') return currentRole === 'Alumne' || currentRole === 'Administrador' || (state.currentUser && newsItem.author_username === state.currentUser.username);
            return true;
         });
 
