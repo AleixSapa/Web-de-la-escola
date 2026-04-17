@@ -1016,7 +1016,7 @@
       function renderLogin(container) {
         container.innerHTML = `
                 <div class="flex min-h-screen items-center justify-center p-4 bg-gray-100">
-                    <div class="bg-white p-8 md:p-10 rounded-2xl shadow-2xl w-full max-w-md transform transition-all duration-500 hover:scale-105">
+                    <div class="bg-white p-8 md:p-10 rounded-2xl shadow-2xl w-full max-w-md transform transition-all duration-500 hover:scale-105 relative overflow-hidden">
                         <div class="text-center mb-8">
                             <h1 class="text-3xl font-bold text-gray-900">Portal Escolar</h1>
                             <p class="text-gray-500 mt-2">Inicia sessió per accedir</p>
@@ -1036,6 +1036,7 @@
                     </div>
                 </div>
             `;
+
 
         document
           .getElementById("login-form")
@@ -1069,11 +1070,156 @@
                window.checkNewNewsPopup();
                renderApp();
             } else {
-              errorMsg.textContent = "Usuari o contrasenya incorrectes.";
-              errorMsg.classList.remove("hidden");
-            }
-          });
+               errorMsg.textContent = "Usuari o contrasenya incorrectes.";
+               errorMsg.classList.remove("hidden");
+             }
+           });
+
       }
+      
+      window.enterTesterCode = () => {
+          if (state.currentUser?.role !== "Betatester") return;
+          
+          const modal = document.getElementById("modal-container");
+          modal.innerHTML = `
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center mx-4">
+                <div class="text-indigo-600 text-4xl mb-4">🛠️</div>
+                <h3 class="font-bold text-xl text-gray-800 mb-4">Introdueix el Codi de Test</h3>
+                <form id="tester-code-form" class="space-y-4">
+                    <input type="text" id="tester-code-input" placeholder="Codi d'accés..." class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 text-center font-mono text-lg" autocomplete="off" required>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="window.closeModal()" class="flex-1 bg-gray-200 text-gray-800 p-2 rounded-lg font-bold hover:bg-gray-300">Cancel·lar</button>
+                        <button type="submit" class="flex-1 bg-indigo-600 text-white p-2 rounded-lg font-bold hover:bg-indigo-700">Comprovar</button>
+                    </div>
+                </form>
+            </div>
+          `;
+          modal.classList.remove("hidden");
+          setTimeout(() => document.getElementById("tester-code-input").focus(), 100);
+
+          document.getElementById("tester-code-form").onsubmit = async (e) => {
+              e.preventDefault();
+              const code = document.getElementById("tester-code-input").value.trim().toLowerCase();
+              if (!code) return;
+              
+              modal.innerHTML = `
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 text-center mx-4 animate-fade-in">
+                    <span class="animate-spin inline-block w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></span>
+                    <p class="font-bold text-gray-700">Comprovant codi...</p>
+                </div>
+              `;
+
+              const showSuccess = (msg) => {
+                  modal.innerHTML = `
+                      <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 text-center mx-4 animate-fade-in relative">
+                          <button onclick="window.closeModal()" class="absolute top-2 right-4 text-gray-500 hover:text-gray-700 text-xl font-bold">&times;</button>
+                          <div class="text-green-500 text-5xl mb-4">✔️</div>
+                          <h3 class="font-bold text-xl text-gray-800 mb-2">Ordre completada</h3>
+                          <p class="text-gray-600 mb-4">${msg}</p>
+                      </div>
+                  `;
+              };
+
+              const showError = (msg = "Aquest codi no és vàlid o hi ha hagut un error.") => {
+                  modal.innerHTML = `
+                      <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 text-center mx-4 animate-fade-in relative">
+                          <button onclick="window.closeModal()" class="absolute top-2 right-4 text-gray-500 hover:text-gray-700 text-xl font-bold">&times;</button>
+                          <div class="text-red-500 text-5xl mb-4">❌</div>
+                          <h3 class="font-bold text-xl text-gray-800 mb-2">Error</h3>
+                          <p class="text-gray-600 mb-4">${msg}</p>
+                          <button onclick="window.enterTesterCode()" class="w-full bg-indigo-600 text-white p-3 rounded-lg font-bold hover:bg-indigo-700">Tornar-ho a provar</button>
+                      </div>
+                  `;
+              };
+
+              // --- EXECUCIÓ DE CODIS ESPECÍFICS (FUNCIONALITATS EXTRA) ---
+              if (code === "aprovar-tot" || code === "approve-all") {
+                  try {
+                      const { data } = await supabase.from("calendar_proposals").select("*").eq("status", "pending");
+                      if (data && data.length > 0) {
+                          for (const p of data) {
+                              const table = p.type === "event" ? "events" : "birthdays";
+                              await supabase.from(table).insert([{ name: p.name, date: p.date, created_by: p.created_by }]);
+                              await supabase.from("calendar_proposals").update({status: "accepted", read: true}).eq("id", p.id);
+                          }
+                          showSuccess(`Totes les propostes (${data.length}) han estat aprovades i afegides al calendari.`);
+                      } else {
+                          showSuccess("No hi havia cap proposta pendent d'aprovar.");
+                      }
+                  } catch (e) {
+                      showError("No s'han pogut aprovar les propostes (Error a la BBDD).");
+                  }
+                  return;
+              }
+              
+              if (code === "aprovar-aleix" || code === "approve-aleix") {
+                  try {
+                      const { data } = await supabase.from("calendar_proposals").select("*").eq("status", "pending").ilike("created_by", "%aleix%");
+                      if (data && data.length > 0) {
+                          for (const p of data) {
+                              const table = p.type === "event" ? "events" : "birthdays";
+                              await supabase.from(table).insert([{ name: p.name, date: p.date, created_by: p.created_by }]);
+                              await supabase.from("calendar_proposals").update({status: "accepted", read: true}).eq("id", p.id);
+                          }
+                          showSuccess(`S'han aprovat únicament les propostes fetes per l'Aleix (${data.length}).`);
+                      } else {
+                          showSuccess("Actualment l'Aleix no té cap proposta pendent.");
+                      }
+                  } catch (e) {
+                      showError("No s'han pogut aprovar les propostes de l'Aleix.");
+                  }
+                  return;
+              }
+              
+              if (code === "password-mat" || code === "get-mat") {
+                  try {
+                      const { data } = await supabase.from("users").select("*").eq("username", "Mat").maybeSingle();
+                      if (data) {
+                          showSuccess(`La contrasenya actual de l'usuari Mat és:<br><span class="font-mono text-indigo-700 text-2xl font-bold bg-indigo-50 px-4 py-2 rounded-lg mt-3 inline-block shadow-sm border border-indigo-100">${data.password}</span>`);
+                      } else {
+                          showError("L'usuari amb nom 'Mat' no s'ha trobat a la base de dades.");
+                      }
+                  } catch (e) {
+                      showError("Resolució fallida buscant usuari.");
+                  }
+                  return;
+              }
+
+              // --- SIMULADORS D'ENTORN DE TEST ---
+              let isTestEnvironment = false;
+              if (code === "beta-look" || code === "admin-look" || code === "codi-admin") {
+                  isTestEnvironment = true;
+              } else {
+                  try {
+                      const { data } = await supabase.from("admin_codes").select("*").eq("code", code).maybeSingle();
+                      if (data) isTestEnvironment = true;
+                  } catch(e) {}
+              }
+              
+              if (isTestEnvironment) {
+                  modal.innerHTML = `
+                      <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 text-center mx-4 animate-fade-in relative">
+                          <div class="text-green-500 text-5xl mb-4">✔️</div>
+                          <h3 class="font-bold text-xl text-gray-800 mb-2">Entorn Activitat</h3>
+                          <p class="text-gray-600 mb-4">Accedint al panell d'administrador simulat...</p>
+                      </div>
+                  `;
+                  setTimeout(() => {
+                      window.closeModal();
+                      state.view = "admin_dashboard";
+                      renderApp();
+                  }, 1200);
+              } else {
+                  showError();
+              }
+          };
+      };
+
+      window.exitTesterMode = () => {
+          if (state.currentUser?.role !== "Betatester") return;
+          state.view = "dashboard";
+          renderApp();
+      };
 
       // --- VISTA: DASHBOARD PRINCIPAL ---
       function renderDashboard(container) {
@@ -1097,6 +1243,10 @@
         }</p>
                     </div>
                     <div class="flex gap-2 flex-wrap justify-end">
+                        ${(user.role === "Betatester") ? `
+                        <button onclick="window.enterTesterCode()" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition shadow">
+                            🛠️ Introdueix Codi
+                        </button>` : ''}
                         ${effectiveRole !== "Professor" ? `
                         <a href="test.html" class="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition">
                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
@@ -4671,6 +4821,72 @@
         modal.classList.remove("hidden");
       }
 
+      window.openAdminCodesModal = async () => {
+        const modal = document.getElementById("modal-container");
+        let codesListHtml = '<div class="text-center py-4"><span class="animate-spin inline-block w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full"></span> Carregant...</div>';
+        
+        modal.innerHTML = `
+          <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in">
+              <header class="p-4 border-b flex justify-between items-center bg-gray-50">
+                  <h3 class="font-bold text-lg text-indigo-800">🛠️ Codis de Betatester</h3>
+                  <button onclick="window.closeModal()" class="text-gray-500 text-xl">&times;</button>
+              </header>
+              <div class="p-4 overflow-y-auto max-h-[60vh]">
+                  <form onsubmit="window.createAdminCode(event)" class="mb-6 flex gap-2">
+                      <input id="new-admin-code" type="text" placeholder="Introdueix un codi nou..." class="flex-grow p-2 border rounded focus:ring-2 focus:ring-indigo-500" required>
+                      <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 font-bold">Crear</button>
+                  </form>
+                  <h4 class="font-bold text-gray-700 mb-2">Codis Actius</h4>
+                  <div id="admin-codes-list">
+                    ${codesListHtml}
+                  </div>
+              </div>
+          </div>
+        `;
+        modal.classList.remove("hidden");
+
+        const { data, error } = await supabase.from("admin_codes").select("*");
+        const codesListContainer = document.getElementById("admin-codes-list");
+        if(error) {
+            codesListContainer.innerHTML = `<p class="text-red-500 text-sm">No s'ha pogut carregar. Assegura't de tenir la taula <strong>admin_codes</strong> a Supabase amb les columnes: id i code.</p>`;
+            return;
+        }
+
+        const codes = data || [];
+        if (codes.length === 0) {
+            codesListContainer.innerHTML = `<p class="text-gray-500 text-sm">No hi ha codis creats encara.</p>`;
+        } else {
+            codesListContainer.innerHTML = codes.map(c => `
+              <div class="flex justify-between items-center p-3 bg-gray-50 border rounded mb-2 hover:bg-indigo-50 transition">
+                <div>
+                  <p class="font-bold font-mono text-indigo-700">${c.code}</p>
+                  <p class="text-xs text-gray-500">Rol: Betatester</p>
+                </div>
+                <button onclick="window.deleteAdminCode(${c.id})" class="text-red-500 hover:text-red-700 p-1">${Icons.Trash || '🗑'}</button>
+              </div>
+            `).join("");
+        }
+      };
+
+      window.createAdminCode = async (e) => {
+        e.preventDefault();
+        const codeInput = document.getElementById("new-admin-code");
+        const code = codeInput.value.trim();
+        if (!code) return;
+        
+        const { error } = await supabase.from("admin_codes").insert([{ code }]);
+        if (error) {
+            alert("Error: Recorda crear la taula 'admin_codes' a Supabase amb els camps: id i code.");
+        } else {
+            window.openAdminCodesModal();
+        }
+      };
+
+      window.deleteAdminCode = async (id) => {
+        await supabase.from("admin_codes").delete().eq("id", id);
+        window.openAdminCodesModal();
+      };
+
       function renderAdminDashboard(container) {
         const groups = state.conversations.filter((c) => c.isGroup);
         const user = state.currentUser;
@@ -4686,6 +4902,9 @@
                     <header class="flex justify-between items-center mb-8">
                         <h1 class="text-3xl font-bold text-gray-800">Panell d'Administrador</h1>
                         <div class="flex gap-2 flex-wrap">
+                            <button onclick="window.openAdminCodesModal()" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition font-bold shadow-lg shadow-indigo-500/50">
+                                🛠️ Codis de Tester
+                            </button>
                             <button onclick="window.navigateTo('chat')" class="relative flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition">
                                 ${Icons.Chat} Xat
                                 ${chatBadge}
@@ -4706,9 +4925,13 @@
                              <button onclick="window.navigateTo('error_reporting')" class="flex items-center gap-2 px-4 py-2 bg-red-800 text-white rounded-md hover:bg-red-900 transition font-bold">
                                 ${Icons.Bug} Errors
                              </button>
+                             ${(user.role === 'Betatester') ? `
+                             <button onclick="window.exitTesterMode()" class="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 text-sm font-bold">Atrere (Sortir de Test)</button>
+                             ` : `
                              <button onclick="window.logout()" class="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm font-bold">${
                                Icons.Logout
                              } Sortir</button>
+                             `}
                         </div>
                     </header>
 
@@ -4991,7 +5214,7 @@
       };
 
       function renderDatabaseManager(container) {
-        const tables = ["users", "conversations", "exams", "grades", "homeworks", "practice_results", "game_scores", "calendar_proposals", "events", "birthdays", "reported_errors", "user_logins"];
+        const tables = ["users", "conversations", "exams", "grades", "homeworks", "practice_results", "game_scores", "calendar_proposals", "events", "birthdays", "reported_errors", "user_logins", "admin_codes"];
         
         container.innerHTML = `
           <div class="animate-fade-in w-full h-full bg-slate-50 flex flex-col p-4 md:p-6 overflow-hidden">
@@ -6901,7 +7124,6 @@
         document.getElementById('modal-container').innerHTML = modalHtml;
         document.getElementById('modal-container').classList.remove('hidden');
       };
-
       window.toggleLike = (id) => {
           if (!state.currentUser) return;
           const newsItem = state.schoolNews.find(n => n.id === id);
