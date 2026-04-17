@@ -3,10 +3,12 @@ Aquests són els codis secrets reservats exclusivament pels comptes amb rol "Bet
 
 > 🔐 **Seguretat del Panell**: Per poder gestionar (crear o veure) aquesta llista des del Panell d'Administrador, el sistema et demanarà una contrasenya mestre de desbloqueig. La contrasenya actual és: **`010914`**. Una vegada la posis, la llista romandrà desbloquejada fins que tanquis o recarreguis la pàgina.
 
+> ⚙️ **Configuració**: Si tens el sistema desbloquejat, pots anar a **Ajustos** i triar entre escriure els codis manualment o triar-los d'una **Llista ràpida** per no haver de recordar-los.
+
 ### 1. Activar Simulador (Entorn de Prova)
 Aquests codis porten temporalment la persona a l'entorn on pot veure i accedir a la consola d'administració:
+- **`admin-look`** (Codi recomanat)
 - **`beta-look`**
-- **`admin-look`**
 - **`codi-admin`**
 - *(I també qualsevol altre codi afegit manualment per tu des de la base de dades/taula "admin_codes")*
 

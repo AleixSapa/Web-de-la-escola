@@ -145,10 +145,10 @@
         examGrades: [],
         gameScores: [],
         teacherHomeworks: [],
-        newExamStudents: [],
         newHomeworkStudents: [],
         isLoadingData: false,
-        testerCodesUnlocked: false,
+        testerCodesUnlocked: localStorage.getItem("testerCodesUnlocked") === "true",
+        testerCodeInputMode: localStorage.getItem("testerCodeInputMode") || 'manual', // 'manual' o 'select'
         canInstall: false,
         birthdays: [],
         events: [],
@@ -737,6 +737,21 @@
                 </div>
               </div>
 
+              ${(state.currentUser.role === 'Betatester' && state.testerCodesUnlocked) ? `
+              <div class="mt-10 pt-10 border-t border-slate-100 animate-fade-in">
+                <h2 class="text-xl font-bold mb-4 text-indigo-700 flex items-center gap-2">🛠️ Configuració Betatester</h2>
+                <div class="flex items-center justify-between p-4 bg-indigo-50 rounded-xl border border-indigo-100 shadow-sm">
+                  <div>
+                    <p class="font-bold text-indigo-900">Mode Llista Ràpida (Botons)</p>
+                    <p class="text-sm text-indigo-600">Activa botons ràpids per no haver d'escriure els codis a mà.</p>
+                  </div>
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" value="" class="sr-only peer" ${state.testerCodeInputMode === 'select' ? 'checked' : ''} onchange="window.toggleTesterMode(this.checked)">
+                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                  </label>
+                </div>
+              </div>` : ''}
+
               <div class="mt-10 pt-10 border-t border-slate-100">
                 <h2 class="text-xl font-bold mb-6 text-slate-700">Dades del Compte</h2>
                 <form onsubmit="window.updateAccount(event)" class="space-y-4">
@@ -914,6 +929,13 @@
           state.currentUser.username = newUsername;
           state.currentUser.password = newPassword;
           window.localStorage.setItem("activeUserPortal", newUsername);
+          
+          // Sincronització extra de preferències al LocalStorage al guardar dades
+          window.localStorage.setItem("notificationsEnabled", state.notificationsEnabled);
+          window.localStorage.setItem("voiceMessagesEnabled", state.voiceMessagesEnabled);
+          window.localStorage.setItem("newsPopupEnabled", state.newsPopupEnabled);
+          window.localStorage.setItem("testerCodeInputMode", state.testerCodeInputMode);
+          window.localStorage.setItem("testerCodesUnlocked", state.testerCodesUnlocked);
 
           alert("Dades actualitzades correctament!");
           renderApp();
@@ -940,6 +962,12 @@
       window.toggleNewsPopup = (enabled) => {
         state.newsPopupEnabled = enabled;
         window.localStorage.setItem("newsPopupEnabled", enabled);
+        renderApp();
+      };
+
+      window.toggleTesterMode = (enabled) => {
+        state.testerCodeInputMode = enabled ? 'select' : 'manual';
+        window.localStorage.setItem("testerCodeInputMode", state.testerCodeInputMode);
         renderApp();
       };
 
@@ -1105,6 +1133,7 @@
                   e.preventDefault();
                   if (document.getElementById("master-pwd").value === "010914") {
                       state.testerCodesUnlocked = true;
+                      localStorage.setItem("testerCodesUnlocked", "true");
                       window.enterTesterCode(); // Re-cridar un cop desbloquejat
                   } else {
                       alert("Contrasenya incorrecta. Accés denegat.");
@@ -1112,6 +1141,87 @@
               };
               return;
           }
+          modal.innerHTML = `
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center mx-4">
+                <div class="text-indigo-600 text-4xl mb-4">🛠️</div>
+                <h3 class="font-bold text-xl text-gray-800 mb-4">Introdueix el Codi de Test</h3>
+                <form id="tester-code-form" class="space-y-4">
+                    <input type="text" id="tester-code-input" placeholder="Codi d'accés..." class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 text-center font-mono text-lg" autocomplete="off" required>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="window.closeModal()" class="flex-1 bg-gray-200 text-gray-800 p-2 rounded-lg font-bold hover:bg-gray-300">Cancel·lar</button>
+                        <button type="submit" class="flex-1 bg-indigo-600 text-white p-2 rounded-lg font-bold hover:bg-indigo-700">Comprovar</button>
+                    </div>
+                </form>
+            </div>
+          `;
+          modal.classList.remove("hidden");
+          setTimeout(() => document.getElementById("tester-code-input").focus(), 100);
+
+          if (state.testerCodeInputMode === 'select') {
+              modal.innerHTML = `
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center mx-4">
+                    <div class="text-indigo-600 text-4xl mb-4">🛠️</div>
+                    <h3 class="font-bold text-xl text-gray-800 mb-2">Triar Codi de Test</h3>
+                    <p class="text-xs text-gray-500 mb-4">Has seleccionat el mode llista ràpida</p>
+                    <div class="grid grid-cols-1 gap-2">
+                        <button onclick="window.submitQuickCode('admin-look')" class="p-3 bg-gray-50 border rounded-lg hover:bg-indigo-50 hover:border-indigo-200 transition text-left font-bold text-indigo-700 flex justify-between items-center">
+                            <span>🎮 Entrar Panell (Modo Admin)</span>
+                            <span class="text-[10px] bg-indigo-200 px-2 py-0.5 rounded uppercase">Entorn</span>
+                        </button>
+                        <button onclick="window.submitQuickCode('errors-look')" class="p-3 bg-gray-50 border rounded-lg hover:bg-orange-50 hover:border-orange-200 transition text-left font-bold text-orange-700 flex justify-between items-center">
+                            <span>⚠️ Veure Errors Reportats</span>
+                            <span class="text-[10px] bg-orange-200 px-2 py-0.5 rounded uppercase">Logs</span>
+                        </button>
+                        <div class="p-3 bg-gray-50 border rounded-lg text-left flex flex-col gap-2">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold text-indigo-700">🙋 Aprovar Propostes de:</span>
+                                <span class="text-[10px] bg-blue-200 px-2 py-0.5 rounded uppercase font-bold text-blue-800">Cerca</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <input type="text" id="quick-approve-name" placeholder="Nom usuari..." class="flex-grow p-2 border rounded-md text-sm focus:ring-2 focus:ring-indigo-500 outline-none" value="Aleix">
+                                <button onclick="window.submitQuickCode('aprovar-' + document.getElementById('quick-approve-name').value)" class="bg-indigo-600 text-white px-3 py-2 rounded-md font-bold text-xs hover:bg-indigo-700 transition shadow-sm">OK</button>
+                            </div>
+                        </div>
+                        <div class="p-3 bg-gray-50 border rounded-lg text-left flex flex-col gap-2">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold text-indigo-700">🔑 Veure dades de:</span>
+                                <span class="text-[10px] bg-yellow-200 px-2 py-0.5 rounded uppercase font-bold text-yellow-800">Dades</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <input type="text" id="quick-get-name" placeholder="Nom o usuari..." class="flex-grow p-2 border rounded-md text-sm focus:ring-2 focus:ring-indigo-500 outline-none" value="Mat">
+                                <button onclick="window.submitQuickCode('get-' + document.getElementById('quick-get-name').value)" class="bg-indigo-600 text-white px-3 py-2 rounded-md font-bold text-xs hover:bg-indigo-700 transition shadow-sm">OK</button>
+                            </div>
+                        </div>
+                        <button onclick="window.closeModal()" class="mt-4 p-2 text-gray-400 hover:text-gray-600 text-sm font-bold">Tancar</button>
+                    </div>
+                </div>
+              `;
+              
+              window.submitQuickCode = (code) => {
+                  const fakeForm = {
+                      preventDefault: () => {},
+                  };
+                  // Inyectem el codi al workflow manual per no duplicar logic
+                  const originalOnSubmit = document.createElement('form');
+                  originalOnSubmit.onsubmit = document.getElementById("tester-code-form")?.onsubmit;
+                  
+                  // Executem directament la validació
+                  executQuickCode(code);
+              };
+
+              const executQuickCode = async (code) => {
+                  modal.innerHTML = `
+                    <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 text-center mx-4 animate-fade-in">
+                        <span class="animate-spin inline-block w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></span>
+                        <p class="font-bold text-gray-700">Executant mètode ràpid...</p>
+                    </div>
+                  `;
+                  // Aquí cridem a la lògica de processat de codis
+                  await processTesterCode(code, modal);
+              };
+              return;
+          }
+
           modal.innerHTML = `
             <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center mx-4">
                 <div class="text-indigo-600 text-4xl mb-4">🛠️</div>
@@ -1139,7 +1249,11 @@
                     <p class="font-bold text-gray-700">Comprovant codi...</p>
                 </div>
               `;
+              await processTesterCode(code, modal);
+          };
+      };
 
+      const processTesterCode = async (code, modal) => {
               const showSuccess = (msg) => {
                   modal.innerHTML = `
                       <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 text-center mx-4 animate-fade-in relative max-h-[85vh] overflow-y-auto">
@@ -1183,25 +1297,59 @@
                   return;
               }
               
-              if (code === "aprovar-aleix" || code === "approve-aleix") {
+              if (code.startsWith("aprovar-") && code !== "aprovar-tot") {
+                  const targetName = code.substring(8).trim();
+                  
+                  // Si no hi ha nom (està buit), mirem que aprovi TOT exactament com "aprovar-tot"
+                  if (!targetName) {
+                      await processTesterCode("aprovar-tot", modal);
+                      return;
+                  }
                   try {
-                      const { data } = await supabase.from("calendar_proposals").select("*").eq("status", "pending").ilike("created_by", "%aleix%");
+                      const { data } = await supabase.from("calendar_proposals").select("*").eq("status", "pending").ilike("created_by", `%${targetName}%`);
                       if (data && data.length > 0) {
                           for (const p of data) {
                               const table = p.type === "event" ? "events" : "birthdays";
                               await supabase.from(table).insert([{ name: p.name, date: p.date, created_by: p.created_by }]);
                               await supabase.from("calendar_proposals").update({status: "accepted", read: true}).eq("id", p.id);
                           }
-                          showSuccess(`S'han aprovat únicament les propostes fetes per l'Aleix (${data.length}).`);
+                          showSuccess(`S'han aprovat les propostes de "${targetName}" (${data.length}).`);
                       } else {
-                          showSuccess("Actualment l'Aleix no té cap proposta pendent.");
+                          showSuccess(`L'usuari "${targetName}" no té cap proposta pendent.`);
                       }
                   } catch (e) {
-                      showError("No s'han pogut aprovar les propostes de l'Aleix.");
+                      showError(`No s'han pogut aprovar les propostes de "${targetName}".`);
                   }
                   return;
               }
               
+              if (code === "errors-look") {
+                  try {
+                      const { data: errors } = await supabase.from("reported_errors").select("*").order("created_at", { ascending: false }).limit(10);
+                      if (errors && errors.length > 0) {
+                          const errorsHtml = errors.map(e => `
+                              <div class="mt-6 bg-red-50 p-5 rounded-2xl shadow-md border border-red-100 text-left mx-auto max-w-md border-l-8 border-l-red-600">
+                                  <div class="flex justify-between items-start mb-2">
+                                      <span class="text-xs font-black uppercase text-red-700 bg-red-200 px-3 py-1 rounded-full">${e.page || 'Portal'}</span>
+                                      <span class="text-xs text-gray-500 font-mono font-bold">${new Date(e.created_at || Date.now()).toLocaleDateString()}</span>
+                                  </div>
+                                  <p class="text-lg font-extrabold text-gray-900 mb-2 leading-tight">"${e.description || e.text || 'Sense descripció'}"</p>
+                                  <div class="flex items-center gap-2 mt-4 pt-3 border-t border-red-200/50">
+                                      <span class="text-xl">👤</span>
+                                      <p class="text-sm text-gray-600 font-medium italic">Reportat per: <span class="font-bold text-red-700">@${e.user || 'alumne'}</span></p>
+                                  </div>
+                              </div>
+                          `).join('');
+                          showSuccess(`Últims ${errors.length} errors reportats:<br><div class="max-h-[60vh] overflow-y-auto mt-4 pr-2 pb-4">${errorsHtml}</div>`);
+                      } else {
+                          showSuccess("No s'ha trobat cap error reportat a la base de dades.");
+                      }
+                  } catch (e) {
+                      showError("Error connectant amb el servidor de logs.");
+                  }
+                  return;
+              }
+
               if (code.startsWith("password-")) {
                   const targetUser = code.substring(9).trim();
                   try {
@@ -1281,7 +1429,6 @@
                       showError();
                   }
               }
-          };
       };
 
       window.exitTesterMode = () => {
@@ -4915,6 +5062,7 @@
                  const pass = document.getElementById("unlock-password").value;
                  if (pass === "010914") { // Nova contrasenya de seguretat
                      state.testerCodesUnlocked = true;
+                     localStorage.setItem("testerCodesUnlocked", "true");
                      window.openAdminCodesModal();
                  } else {
                      alert("Contrasenya de gestió incorrecta. Accés denegat.");
