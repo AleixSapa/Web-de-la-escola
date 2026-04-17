@@ -1,6 +1,8 @@
 # 🛠️ Llista de Codis Especial per a Betatesters
 Aquests són els codis secrets reservats exclusivament pels comptes amb rol "Betatester", introduïts al moment de fer testos des de l'opció introduir codi manualment.
 
+> 🔐 **Seguretat del Panell**: Per poder gestionar (crear o veure) aquesta llista des del Panell d'Administrador, el sistema et demanarà una contrasenya mestre de desbloqueig. La contrasenya actual és: **`010914`**. Una vegada la posis, la llista romandrà desbloquejada fins que tanquis o recarreguis la pàgina.
+
 ### 1. Activar Simulador (Entorn de Prova)
 Aquests codis porten temporalment la persona a l'entorn on pot veure i accedir a la consola d'administració:
 - **`beta-look`**
