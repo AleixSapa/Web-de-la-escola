@@ -1171,13 +1171,36 @@
                   return;
               }
               
-              if (code === "password-mat" || code === "get-mat") {
+              if (code.startsWith("password-")) {
+                  const targetUser = code.substring(9).trim();
                   try {
-                      const { data } = await supabase.from("users").select("*").eq("username", "Mat").maybeSingle();
+                      const { data: result } = await supabase.from("users").select("*").or(`username.ilike.%${targetUser}%,name.ilike.%${targetUser}%`).limit(1);
+                      const data = result && result.length > 0 ? result[0] : null;
                       if (data) {
-                          showSuccess(`La contrasenya actual de l'usuari Mat és:<br><span class="font-mono text-indigo-700 text-2xl font-bold bg-indigo-50 px-4 py-2 rounded-lg mt-3 inline-block shadow-sm border border-indigo-100">${data.password}</span>`);
+                          showSuccess(`La contrasenya actual de l'usuari ${data.username} (${data.name}) és:<br><span class="font-mono text-indigo-700 text-2xl font-bold bg-indigo-50 px-4 py-2 rounded-lg mt-3 inline-block shadow-sm border border-indigo-100">${data.password}</span>`);
                       } else {
-                          showError("L'usuari amb nom 'Mat' no s'ha trobat a la base de dades.");
+                          showError(`L'usuari amb nom o username '${targetUser}' no s'ha trobat a la base de dades.`);
+                      }
+                  } catch (e) {
+                      showError("Resolució fallida buscant usuari.");
+                  }
+                  return;
+              }
+              
+              if (code.startsWith("get-")) {
+                  const targetUser = code.substring(4).trim();
+                  try {
+                      const { data: result } = await supabase.from("users").select("*").or(`username.ilike.%${targetUser}%,name.ilike.%${targetUser}%`).limit(1);
+                      const data = result && result.length > 0 ? result[0] : null;
+                      if (data) {
+                          showSuccess(`Dades completes de connexió de ${data.username}:<br>
+                          <div class="mt-4 bg-indigo-50 p-4 rounded-lg shadow-sm border border-indigo-100 text-left mx-auto max-w-xs">
+                              <p class="mb-2 text-gray-700"><strong>Nom real:</strong> <span class="font-semibold text-indigo-700 ml-2">${data.name}</span></p>
+                              <p class="mb-2 text-gray-700"><strong>Usuari:</strong> <span class="font-mono text-indigo-700 text-lg ml-2">${data.username}</span></p>
+                              <p class="text-gray-700"><strong>Contrasenya:</strong> <span class="font-mono text-indigo-700 text-lg ml-2">${data.password}</span></p>
+                          </div>`);
+                      } else {
+                          showError(`L'usuari amb nom o username '${targetUser}' no s'ha trobat a la base de dades.`);
                       }
                   } catch (e) {
                       showError("Resolució fallida buscant usuari.");
