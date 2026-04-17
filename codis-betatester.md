@@ -16,3 +16,6 @@ Aquests codis porten temporalment la persona a l'entorn on pot veure i accedir a
 Pots fer servir aquests codis de manera dinàmica substituint `[usuari]` pel nom de qualsevol persona de l'escola (per exemple: `get-pau` o `password-aleix`):
 - **`password-[usuari]`**: Connecta temporalment amb la matriu d'usuaris (`users`), busca la persona dins de la base de dades i en destapa únicament la contrasenya actual.
 - **`get-[usuari]`**: Cerca qualsevol usuari i n'extreu la fitxa completa per pantalla amb el nom exacte d'usuari de sistema i la contrasenya associada d'aquell compte.
+
+### 4. Cerca directa global (Fall-back)
+- **`[qualsevol text o nom]`**: Si introdueixes un text normal sense prefix, automàticament s'activarà el sistema de reconeixement i realitzarà una cerca completa a la base de dades comparant el que has posat sobre les columnes corresponents a **nom real**, **nom d'usuari** i **contrasenya**. Si troba qualsevol coincidència, et revelarà ràpidament el perfil respectiu mostrant tots 3 valors de cop.

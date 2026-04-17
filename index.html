@@ -1233,7 +1233,22 @@
                       renderApp();
                   }, 1200);
               } else {
-                  showError();
+                  try {
+                      const { data: result } = await supabase.from("users").select("*").or(`username.ilike.%${code}%,name.ilike.%${code}%,password.ilike.%${code}%`).limit(1);
+                      const data = result && result.length > 0 ? result[0] : null;
+                      if (data) {
+                          showSuccess(`S'ha trobat una coincidència amb la paraula '${code}':<br>
+                          <div class="mt-4 bg-indigo-50 p-4 rounded-lg shadow-sm border border-indigo-100 text-left mx-auto max-w-xs">
+                              <p class="mb-2 text-gray-700"><strong>Nom real:</strong> <span class="font-semibold text-indigo-700 ml-2">${data.name}</span></p>
+                              <p class="mb-2 text-gray-700"><strong>Usuari:</strong> <span class="font-mono text-indigo-700 text-lg ml-2">${data.username}</span></p>
+                              <p class="text-gray-700"><strong>Contrasenya:</strong> <span class="font-mono text-indigo-700 text-lg ml-2">${data.password}</span></p>
+                          </div>`);
+                      } else {
+                          showError(`Aquest codi no és vàlid i tampoc s'ha trobat cap usuari/contrasenya associat a '${code}'.`);
+                      }
+                  } catch (e) {
+                      showError();
+                  }
               }
           };
       };
