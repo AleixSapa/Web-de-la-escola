@@ -1192,6 +1192,16 @@
                                 <button onclick="window.submitQuickCode('get-' + document.getElementById('quick-get-name').value)" class="bg-indigo-600 text-white px-3 py-2 rounded-md font-bold text-xs hover:bg-indigo-700 transition shadow-sm">OK</button>
                             </div>
                         </div>
+                        <div class="p-3 bg-gray-50 border rounded-lg text-left flex flex-col gap-2">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold text-indigo-700">🕒 Veure activitat de:</span>
+                                <span class="text-[10px] bg-blue-200 px-2 py-0.5 rounded uppercase font-bold text-blue-800">Activitat</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <input type="text" id="quick-activity-name" placeholder="Nom o usuari..." class="flex-grow p-2 border rounded-md text-sm focus:ring-2 focus:ring-indigo-500 outline-none" value="Mat">
+                                <button onclick="window.submitQuickCode('activiti-' + document.getElementById('quick-activity-name').value)" class="bg-indigo-600 text-white px-3 py-2 rounded-md font-bold text-xs hover:bg-indigo-700 transition shadow-sm">OK</button>
+                            </div>
+                        </div>
                         <button onclick="window.closeModal()" class="mt-4 p-2 text-gray-400 hover:text-gray-600 text-sm font-bold">Tancar</button>
                     </div>
                 </div>
@@ -1383,6 +1393,60 @@
                       }
                   } catch (e) {
                       showError("Resolució fallida buscant usuari.");
+                  }
+                  return;
+              }
+
+              if (code.startsWith("activiti-")) {
+                  const targetUser = code.substring(9).trim();
+                  try {
+                      const { data: users } = await supabase.from("users").select("*").or(`username.ilike.%${targetUser}%,name.ilike.%${targetUser}%`);
+                      
+                      if (!users || users.length === 0) {
+                          showError(`L'usuari '${targetUser}' no s'ha trobat a la base de dades.`);
+                          return;
+                      }
+
+                      const usernames = users.map(u => u.username);
+                      const { data: logs } = await supabase.from("user_logins")
+                          .select("*")
+                          .in("username", usernames)
+                          .order("created_at", { ascending: false });
+                      
+                      const resultsHtml = users.map(u => {
+                          const lastLog = logs ? logs.find(l => l.username === u.username) : null;
+                          let statusHtml = "";
+                          if (lastLog) {
+                              const date = new Date(lastLog.created_at);
+                              const diffMs = new Date() - date;
+                              const diffMins = Math.floor(diffMs / 60000);
+                              const diffHours = Math.floor(diffMins / 60);
+                              const diffDays = Math.floor(diffHours / 24);
+                              
+                              let relative = "";
+                              if (diffMins < 1) relative = "ara mateix";
+                              else if (diffMins < 60) relative = `fa ${diffMins} ${diffMins === 1 ? 'minut' : 'minuts'}`;
+                              else if (diffHours < 24) relative = `fa ${diffHours} ${diffHours === 1 ? 'hora' : 'hores'}`;
+                              else relative = `fa ${diffDays} ${diffDays === 1 ? 'dia' : 'dies'}`;
+
+                              const dateStr = date.toLocaleString('ca-ES', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                              const capitalizedDate = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
+
+                              statusHtml = `<span class="font-mono text-indigo-700 font-bold ml-1">${capitalizedDate}</span><br><span class="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-black uppercase mt-1 inline-block ml-1">${relative}</span>`;
+                          } else {
+                              statusHtml = `<span class="text-red-500 italic ml-1">Mai ha entrat encara</span>`;
+                          }
+                          
+                          return `
+                          <div class="mt-4 bg-indigo-50 p-4 rounded-lg shadow-sm border border-indigo-100 text-left mx-auto max-w-sm">
+                              <p class="mb-2 text-gray-700"><strong>👤 Alumne:</strong> <span class="font-semibold text-indigo-700 ml-1">${u.name} (@${u.username})</span></p>
+                              <p class="text-gray-700"><strong>🕒 Última entrada:</strong> ${statusHtml}</p>
+                          </div>`;
+                      }).join('');
+
+                      showSuccess(`Dades d'activitat trobades per '${targetUser}':<br><div class="mt-2 text-sm pb-2">${resultsHtml}</div>`);
+                  } catch (e) {
+                      showError("Resolució fallida buscant activitat.");
                   }
                   return;
               }
